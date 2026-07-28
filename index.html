@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0052)file:///Users/rodrigo.ribeiro/Downloads/index_2.html -->
+<!-- saved from url=(0052)file:///Users/rodrigo.ribeiro/Downloads/index_3.html -->
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -335,7 +335,7 @@
   <div class="section-title">Entries</div>
   <div class="ledger" id="ledgerList"><div class="empty">No entries yet this month.<br>Tap + to add the first one.</div></div>
 
-  <div class="status" id="statusLine">No entries yet.</div>
+  <div class="status" id="statusLine">Shared with Dad &amp; Rodrigo</div>
 </div>
 
 <button class="fab" id="openAdd" aria-label="Add entry">+</button>
@@ -373,10 +373,23 @@
   </div>
 </div>
 
+<script src="./index_files/firebase-app-compat.js"></script>
+<script src="./index_files/firebase-database-compat.js"></script>
 <script>
+const firebaseConfig = {
+  apiKey: "AIzaSyAUp5DqyuWV72z12SShBDd3OG4KPUefWV0",
+  authDomain: "xyko-1f524.firebaseapp.com",
+  databaseURL: "https://xyko-1f524-default-rtdb.firebaseio.com",
+  projectId: "xyko-1f524",
+  storageBucket: "xyko-1f524.firebasestorage.app",
+  messagingSenderId: "158983546652",
+  appId: "1:158983546652:web:6a26c89cbf371d7d397cd9"
+};
+firebase.initializeApp(firebaseConfig);
+const entriesRef = firebase.database().ref('entries');
+
 const EXPENSE_CATS = ["Groceries","Housing","Utilities","Transportation","Health","Insurance","Dining","Shopping","Entertainment","Other"];
 const INCOME_CATS = ["Salary","Pension","Gift","Other Income"];
-const STORAGE_KEY = "ledger:entries";
 
 let entries = [];
 let currentType = "expense";
@@ -450,15 +463,20 @@ document.getElementById('saveAdd').onclick = async () => {
   await persist();
 };
 
+function entriesToObj(arr){
+  const o = {};
+  arr.forEach(e => { o[e.id] = e; });
+  return o;
+}
+function objToEntries(obj){
+  return obj ? Object.values(obj) : [];
+}
+
 async function persist(){
   const statusEl = document.getElementById('statusLine');
   try{
     statusEl.textContent = "Saving…";
-    const result = await window.storage.set(STORAGE_KEY, JSON.stringify(entries), true);
-    if(!result){
-      statusEl.textContent = "Couldn't save — check your connection.";
-      return;
-    }
+    await entriesRef.set(entriesToObj(entries));
     statusEl.textContent = "Saved · shared with Dad & Rodrigo";
   }catch(e){
     console.error(e);
@@ -466,17 +484,17 @@ async function persist(){
   }
 }
 
-async function load(){
+function load(){
   const statusEl = document.getElementById('statusLine');
-  try{
-    const result = await window.storage.get(STORAGE_KEY, true);
-    entries = result && result.value ? JSON.parse(result.value) : [];
+  statusEl.textContent = "Connecting…";
+  entriesRef.on('value', (snapshot) => {
+    entries = objToEntries(snapshot.val());
     statusEl.textContent = "Shared with Dad & Rodrigo";
-  }catch(e){
-    entries = [];
-    statusEl.textContent = "No entries yet.";
-  }
-  render();
+    render();
+  }, (err) => {
+    console.error(err);
+    statusEl.textContent = "Couldn't connect — check your internet.";
+  });
 }
 
 async function deleteEntry(id){
