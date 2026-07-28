@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)https://rodrigoguaxupe.github.io/Xyko-Ta-Rico/ -->
+<!-- saved from url=(0052)file:///Users/rodrigo.ribeiro/Downloads/index_7.html -->
 <html lang="pt-BR"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -158,13 +158,6 @@
     border-bottom:1px dashed var(--line-strong);
   }
   .entry:last-child{border-bottom:none;}
-  .entry .who{
-    width:34px;height:34px;border-radius:50%;
-    background:var(--bg);
-    display:flex;align-items:center;justify-content:center;
-    font-size:13px; font-weight:600; color:var(--primary);
-    flex-shrink:0;
-  }
   .entry .mid{flex:1; min-width:0;}
   .entry .cat{
     font-size:14px; font-weight:600; color:var(--ink);
@@ -272,15 +265,6 @@
     color:var(--ink);
   }
   textarea{resize:none; min-height:44px;}
-  .who-row{display:flex; gap:8px;}
-  .who-row button{
-    flex:1; padding:10px; border-radius:10px;
-    border:1px solid var(--line-strong); background:var(--surface);
-    font-size:14px; cursor:pointer; color:var(--ink-soft);
-  }
-  .who-row button.active{
-    background:var(--primary); color:white; border-color:var(--primary);
-  }
   .sheet-actions{
     display:flex; gap:10px; margin-top:20px;
   }
@@ -300,13 +284,8 @@
     text-align:center; font-size:12px; color:var(--ink-soft); margin-top:18px;
   }
 </style>
-<style>
-  .imageye-selected {
-    outline: 2px solid black !important;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5) !important;
-  }
-</style></head>
-<body data-new-gr-c-s-check-loaded="14.1315.0" data-gr-ext-installed="">
+</head>
+<body>
 <div class="app">
   <header class="top">
     <h1>Xyko tá Rico</h1>
@@ -340,7 +319,7 @@
   <div class="section-title">Lançamentos</div>
   <div class="ledger" id="ledgerList"><div class="empty">Nenhum lançamento este mês.<br>Toque em + para adicionar o primeiro.</div></div>
 
-  <div class="status" id="statusLine">Sem conexão com o banco compartilhado.</div>
+  <div class="status" id="statusLine">Compartilhado com Pai e Rodrigo</div>
 </div>
 
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
@@ -351,12 +330,6 @@
     <div class="toggle-row">
       <button type="button" id="typeExpense" class="active expense">Despesa</button>
       <button type="button" id="typeIncome" class="income">Receita</button>
-    </div>
-
-    <label>Quem está adicionando</label>
-    <div class="who-row">
-      <button type="button" class="who-btn active" data-who="Pai">Pai</button>
-      <button type="button" class="who-btn" data-who="Rodrigo">Rodrigo</button>
     </div>
 
     <label>Valor</label>
@@ -398,6 +371,10 @@ try{
 }catch(e){
   console.error('Firebase init failed:', e);
   firebaseError = e;
+  window.addEventListener('DOMContentLoaded', () => {
+    const el = document.getElementById('statusLine');
+    if(el) el.textContent = "Erro ao iniciar: " + (e && e.message ? e.message : e);
+  });
 }
 
 const EXPENSE_CATS = ["Mercado","Moradia","Contas","Transporte","Saúde","Seguro","Restaurante","Compras","Lazer","Outros"];
@@ -405,7 +382,6 @@ const INCOME_CATS = ["Salário","Aposentadoria","Presente","Outras receitas"];
 
 let entries = [];
 let currentType = "expense";
-let currentWho = "Pai";
 let viewDate = new Date();
 
 const fmt = (n) => {
@@ -434,14 +410,6 @@ function setType(t){
 document.getElementById('typeExpense').onclick = () => setType('expense');
 document.getElementById('typeIncome').onclick = () => setType('income');
 
-document.querySelectorAll('.who-btn').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.who-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentWho = btn.dataset.who;
-  };
-});
-
 document.getElementById('openAdd').onclick = () => {
   document.getElementById('amountInput').value = "";
   document.getElementById('noteInput').value = "";
@@ -462,7 +430,6 @@ document.getElementById('saveAdd').onclick = async () => {
   const entry = {
     id: 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
     type: currentType,
-    who: currentWho,
     amount: amount,
     category: document.getElementById('categoryInput').value,
     date: document.getElementById('dateInput').value || new Date().toISOString().slice(0,10),
@@ -487,7 +454,7 @@ function objToEntries(obj){
 async function persist(){
   const statusEl = document.getElementById('statusLine');
   if(!entriesRef){
-    statusEl.textContent = "Sem conexão com o banco compartilhado — lançamento salvo só neste aparelho.";
+    statusEl.textContent = "Sem conexão com o banco compartilhado" + (firebaseError ? (": " + firebaseError.message) : "") + " — lançamento salvo só neste aparelho.";
     return;
   }
   try{
@@ -503,7 +470,7 @@ async function persist(){
 function load(){
   const statusEl = document.getElementById('statusLine');
   if(!entriesRef){
-    statusEl.textContent = "Sem conexão com o banco compartilhado.";
+    statusEl.textContent = "Sem conexão com o banco compartilhado" + (firebaseError ? (": " + firebaseError.message) : "") + ".";
     render();
     return;
   }
@@ -572,10 +539,8 @@ function render(){
   monthEntries.forEach(e => {
     const row = document.createElement('div');
     row.className = 'entry';
-    const initial = e.who ? e.who[0] : '?';
     const dateLabel = new Date(e.date + 'T00:00:00').toLocaleDateString('pt-BR',{month:'short', day:'numeric'});
     row.innerHTML = `
-      <div class="who">${initial}</div>
       <div class="mid">
         <div class="cat">${e.category}</div>
         <div class="meta">${dateLabel}${e.note ? ' · ' + e.note : ''}</div>
@@ -608,24 +573,4 @@ load();
 </script>
 
 
-</body><grammarly-desktop-integration data-grammarly-shadow-root="true" style="visibility: visible !important;"><template shadowrootmode="open"><style>
-      div.grammarly-desktop-integration {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
-        -moz-user-select: none;
-        -webkit-user-select: none;
-        -ms-user-select:none;
-        user-select:none;
-      }
-
-      div.grammarly-desktop-integration:before {
-        content: attr(data-content);
-      }
-    </style><div aria-label="grammarly-integration" role="group" tabindex="-1" class="grammarly-desktop-integration" data-content="{&quot;mode&quot;:&quot;full&quot;,&quot;isActive&quot;:true,&quot;isUserDisabled&quot;:false}"></div></template></grammarly-desktop-integration></html>
+</body></html>
