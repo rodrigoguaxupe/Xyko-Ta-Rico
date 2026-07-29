@@ -281,14 +281,47 @@
   .status{
     text-align:center; font-size:12px; color:var(--ink-soft); margin-top:18px;
   }
+  .goal-card{
+    background:var(--surface);
+    border:1px solid var(--line-strong);
+    border-radius:var(--radius);
+    padding:14px 16px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-top:18px;
+  }
+  .goal-icon{font-size:22px; flex-shrink:0;}
+  .goal-info{flex:1; min-width:0;}
+  .goal-text{font-size:13px; color:var(--ink); font-weight:600; margin-bottom:6px;}
+  .goal-bar-track{height:7px; background:var(--line); border-radius:4px; overflow:hidden;}
+  .goal-bar-fill{height:100%; background:var(--accent); border-radius:4px; transition:width .3s ease;}
+  .goal-reset-btn{
+    flex-shrink:0;
+    background:var(--primary); color:white; border:none;
+    padding:8px 12px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer;
+  }
+  .updated-line{
+    text-align:right; font-size:11px; color:var(--ink-soft); margin:8px 4px 0;
+  }
 </style>
 </head>
 <body>
 <div class="app">
   <header class="top">
     <h1>Xyko tá Rico</h1>
-    <p>Compartilhado entre Pai e Rodrigo</p>
   </header>
+
+  <div class="goal-card" id="goalCard">
+    <div class="goal-icon">✈️</div>
+    <div class="goal-info">
+      <div class="goal-text" id="goalText">Carregando meta…</div>
+      <div class="goal-bar-track"><div class="goal-bar-fill" id="goalBarFill" style="width:0%"></div></div>
+    </div>
+    <button class="goal-reset-btn" id="goalResetBtn" style="display:none;">Recomeçar meta</button>
+  </div>
+
+  <div class="updated-line" id="updatedLine"></div>
 
   <div class="month-nav">
     <button id="prevMonth">‹</button>
@@ -326,7 +359,7 @@
 
 <div class="sheet-backdrop" id="backdrop">
   <div class="sheet">
-    <h2>Novo lançamento</h2>
+    <h2 id="sheetTitle">Novo lançamento</h2>
     <div class="toggle-row">
       <button type="button" id="typeExpense" class="active expense">Despesa</button>
       <button type="button" id="typeIncome" class="income">Receita</button>
@@ -364,10 +397,12 @@ const firebaseConfig = {
   appId: "1:158983546652:web:6a26c89cbf371d7d397cd9"
 };
 let entriesRef = null;
+let goalRef = null;
 let firebaseError = null;
 try{
   firebase.initializeApp(firebaseConfig);
   entriesRef = firebase.database().ref('entries');
+  goalRef = firebase.database().ref('goal');
 }catch(e){
   console.error('Firebase init failed:', e);
   firebaseError = e;
@@ -377,16 +412,19 @@ try{
   });
 }
 
-const EXPENSE_CATS = ["Mercado","Moradia","Contas","Transporte","Saúde","Seguro","Restaurante","Compras","Lazer","Outros"];
+const EXPENSE_CATS = ["Supermercado","Médico/Farmácia","Manutenção Casa","Restaurantes","Compras","Lazer","Presentes","Igreja"];
 const INCOME_CATS = ["Salário","Aposentadoria","Presente","Outras receitas"];
 
 let entries = [];
 let currentType = "expense";
 let viewDate = new Date();
+let editingId = null;
+let goalResetAt = "2000-01-01";
+const GOAL_TARGET = 5000;
 
 const fmt = (n) => {
   const sign = n < 0 ? "-" : "";
-  return sign + "$" + Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:0, maximumFractionDigits:0});
+  return sign + "R$" + Math.abs(n).toLocaleString('pt-BR',{minimumFractionDigits:0, maximumFractionDigits:0});
 };
 
 function populateCategories(){
@@ -411,12 +449,25 @@ document.getElementById('typeExpense').onclick = () => setType('expense');
 document.getElementById('typeIncome').onclick = () => setType('income');
 
 document.getElementById('openAdd').onclick = () => {
+  editingId = null;
+  document.getElementById('sheetTitle').textContent = "Novo lançamento";
   document.getElementById('amountInput').value = "";
   document.getElementById('noteInput').value = "";
   document.getElementById('dateInput').value = new Date().toISOString().slice(0,10);
   setType('expense');
   document.getElementById('backdrop').classList.add('open');
 };
+
+function openEditSheet(entry){
+  editingId = entry.id;
+  document.getElementById('sheetTitle').textContent = "Editar lançamento";
+  setType(entry.type);
+  document.getElementById('amountInput').value = entry.amount;
+  document.getElementById('categoryInput').value = entry.category;
+  document.getElementById('dateInput').value = entry.date;
+  document.getElementById('noteInput').value = entry.note || "";
+  document.getElementById('backdrop').classList.add('open');
+}
 document.getElementById('cancelAdd').onclick = () => {
   document.getElementById('backdrop').classList.remove('open');
 };
@@ -427,16 +478,27 @@ document.getElementById('saveAdd').onclick = async () => {
     alert("Digite um valor maior que 0.");
     return;
   }
-  const entry = {
-    id: 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
-    type: currentType,
-    amount: amount,
-    category: document.getElementById('categoryInput').value,
-    date: document.getElementById('dateInput').value || new Date().toISOString().slice(0,10),
-    note: document.getElementById('noteInput').value.trim(),
-    createdAt: Date.now()
-  };
-  entries.push(entry);
+  const date = document.getElementById('dateInput').value || new Date().toISOString().slice(0,10);
+  const category = document.getElementById('categoryInput').value;
+  const note = document.getElementById('noteInput').value.trim();
+
+  if(editingId){
+    const idx = entries.findIndex(e => e.id === editingId);
+    if(idx !== -1){
+      entries[idx] = { ...entries[idx], type: currentType, amount, category, date, note };
+    }
+  } else {
+    entries.push({
+      id: 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      type: currentType,
+      amount: amount,
+      category: category,
+      date: date,
+      note: note,
+      createdAt: Date.now()
+    });
+  }
+  editingId = null;
   document.getElementById('backdrop').classList.remove('open');
   render();
   await persist();
@@ -483,6 +545,13 @@ function load(){
     console.error(err);
     statusEl.textContent = "Não foi possível conectar — verifique sua internet.";
   });
+  if(goalRef){
+    goalRef.on('value', (snapshot) => {
+      const data = snapshot.val();
+      goalResetAt = (data && data.resetAt) ? data.resetAt : "2000-01-01";
+      render();
+    });
+  }
 }
 
 async function deleteEntry(id){
@@ -494,6 +563,8 @@ async function deleteEntry(id){
 function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0'); }
 
 function render(){
+  renderGoal();
+  renderUpdatedLine();
   const mk = monthKey(viewDate);
   document.getElementById('monthLabel').textContent = viewDate.toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
 
@@ -539,6 +610,7 @@ function render(){
   monthEntries.forEach(e => {
     const row = document.createElement('div');
     row.className = 'entry';
+    row.style.cursor = 'pointer';
     const dateLabel = new Date(e.date + 'T00:00:00').toLocaleDateString('pt-BR',{month:'short', day:'numeric'});
     row.innerHTML = `
       <div class="mid">
@@ -548,10 +620,15 @@ function render(){
       <div class="amt ${e.type}">${e.type === 'expense' ? '-' : '+'}${fmt(e.amount)}</div>
       <button class="del" data-id="${e.id}" aria-label="Excluir">×</button>
     `;
+    row.addEventListener('click', (evt) => {
+      if(evt.target.closest('.del')) return;
+      openEditSheet(e);
+    });
+    row.querySelector('.del').onclick = (evt) => {
+      evt.stopPropagation();
+      deleteEntry(e.id);
+    };
     listEl.appendChild(row);
-  });
-  listEl.querySelectorAll('.del').forEach(btn=>{
-    btn.onclick = () => deleteEntry(btn.dataset.id);
   });
 }
 
@@ -567,6 +644,43 @@ document.getElementById('nextMonth').onclick = () => {
 document.getElementById('backdrop').onclick = (e) => {
   if(e.target.id === 'backdrop') document.getElementById('backdrop').classList.remove('open');
 };
+
+document.getElementById('goalResetBtn').onclick = async () => {
+  if(goalRef){
+    await goalRef.set({ resetAt: new Date().toISOString().slice(0,10) });
+  }
+};
+
+function renderGoal(){
+  const goalNet = entries
+    .filter(e => e.date && e.date >= goalResetAt)
+    .reduce((s,e) => s + (e.type === 'income' ? e.amount : -e.amount), 0);
+
+  const remaining = GOAL_TARGET - goalNet;
+  const pct = Math.max(0, Math.min(100, (goalNet / GOAL_TARGET) * 100));
+  const textEl = document.getElementById('goalText');
+  const fillEl = document.getElementById('goalBarFill');
+  const resetBtn = document.getElementById('goalResetBtn');
+
+  fillEl.style.width = pct.toFixed(0) + "%";
+
+  if(remaining <= 0){
+    textEl.textContent = "Meta batida! 🎉 Hora de comprar a passagem pra NY";
+    resetBtn.style.display = "inline-block";
+  } else {
+    textEl.textContent = "Faltam " + fmt(remaining) + " para a passagem pra NY";
+    resetBtn.style.display = "none";
+  }
+}
+
+function renderUpdatedLine(){
+  const el = document.getElementById('updatedLine');
+  if(!entries.length){ el.textContent = ""; return; }
+  const latest = Math.max(...entries.map(e => e.createdAt || 0));
+  if(!latest){ el.textContent = ""; return; }
+  const time = new Date(latest).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+  el.textContent = "Atualizado às " + time;
+}
 
 populateCategories();
 load();
