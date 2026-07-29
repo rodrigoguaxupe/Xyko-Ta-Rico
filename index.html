@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
+<!-- saved from url=(0052)file:///Users/rodrigo.ribeiro/Downloads/index_9.html -->
+<html lang="pt-BR"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -201,6 +201,18 @@
     z-index:20;
   }
   .fab:active{transform:scale(0.95);}
+  .backup-btn{
+    position:fixed;
+    bottom:24px; left:16px;
+    background:none; border:none;
+    color:var(--ink-soft);
+    opacity:0.45;
+    font-size:19px;
+    padding:8px;
+    cursor:pointer;
+    z-index:20;
+  }
+  .backup-btn:active{ opacity:0.8; }
 
   .sheet-backdrop{
     position:fixed; inset:0;
@@ -298,6 +310,11 @@
   .goal-text{font-size:13px; color:var(--ink); font-weight:600; margin-bottom:6px;}
   .goal-bar-track{height:7px; background:var(--line); border-radius:4px; overflow:hidden;}
   .goal-bar-fill{height:100%; background:var(--accent); border-radius:4px; transition:width .3s ease;}
+  .goal-reset-btn{
+    flex-shrink:0;
+    background:var(--primary); color:white; border:none;
+    padding:8px 12px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer;
+  }
   .updated-line{
     text-align:right; font-size:11px; color:var(--ink-soft); margin:8px 4px 0;
   }
@@ -322,7 +339,7 @@
   <div class="goal-card" id="goalCard">
     <div class="goal-icon">✈️</div>
     <div class="goal-info">
-      <div class="goal-text" id="goalText">Carregando meta…</div>
+      <div class="goal-text" id="goalText">Meta: R$5.000 pra visitar o Luca</div>
       <div class="goal-bar-track"><div class="goal-bar-fill" id="goalBarFill" style="width:0%"></div></div>
     </div>
   </div>
@@ -331,21 +348,21 @@
 
   <div class="month-nav">
     <button id="prevMonth">‹</button>
-    <div class="month-label" id="monthLabel">—</div>
+    <div class="month-label" id="monthLabel">julho de 2026</div>
     <button id="nextMonth">›</button>
   </div>
 
   <div class="summary-card">
     <div class="summary-net-label">Saldo do mês</div>
-    <div class="summary-net" id="netAmt">$0</div>
+    <div class="summary-net" id="netAmt" style="color: rgb(243, 246, 241);">R$0</div>
     <div class="summary-row">
       <div>
-        <div>Entradas</div>
-        <div class="amt in-color" id="inAmt">$0</div>
+        <div>Receita</div>
+        <div class="amt in-color" id="inAmt">R$0</div>
       </div>
       <div>
-        <div>Saídas</div>
-        <div class="amt out-color" id="outAmt">$0</div>
+        <div>Gastos</div>
+        <div class="amt out-color" id="outAmt">R$0</div>
       </div>
     </div>
   </div>
@@ -354,14 +371,13 @@
   <div id="catBars"></div>
 
   <div class="section-title">Lançamentos</div>
-  <div class="ledger" id="ledgerList">
-    <div class="empty">Carregando…</div>
-  </div>
+  <div class="ledger" id="ledgerList"><div class="empty">Nenhum lançamento este mês.<br>Toque em + para adicionar o primeiro.</div></div>
 
-  <div class="status" id="statusLine"></div>
+  <div class="status" id="statusLine">Salvo</div>
 </div>
 
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
+<button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup">⤓</button>
 
 <div class="sheet-backdrop" id="backdrop">
   <div class="sheet">
@@ -376,7 +392,7 @@
 
     <div id="categoryFieldWrap">
       <label>Categoria</label>
-      <select id="categoryInput"></select>
+      <select id="categoryInput"><option value="Supermercado">Supermercado</option><option value="Médico/Farmácia">Médico/Farmácia</option><option value="Manutenção Casa">Manutenção Casa</option><option value="Restaurantes">Restaurantes</option><option value="Compras">Compras</option><option value="Lazer">Lazer</option><option value="Presentes">Presentes</option><option value="Igreja">Igreja</option></select>
     </div>
 
     <div class="field-row" id="parcelarRow" style="display:none;">
@@ -401,8 +417,8 @@
   </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="./index_files/firebase-app-compat.js"></script>
+<script src="./index_files/firebase-database-compat.js"></script>
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyAUp5DqyuWV72z12SShBDd3OG4KPUefWV0",
@@ -584,7 +600,7 @@ async function persist(){
   try{
     statusEl.textContent = "Salvando…";
     await entriesRef.set(entriesToObj(entries));
-    statusEl.textContent = "Salvo · compartilhado com Pai e Rodrigo";
+    statusEl.textContent = "Salvo";
   }catch(e){
     console.error(e);
     statusEl.textContent = "Não foi possível salvar — verifique sua conexão.";
@@ -601,7 +617,7 @@ function load(){
   statusEl.textContent = "Conectando…";
   entriesRef.on('value', (snapshot) => {
     entries = objToEntries(snapshot.val());
-    statusEl.textContent = "Compartilhado com Pai e Rodrigo";
+    statusEl.textContent = "Salvo";
     render();
   }, (err) => {
     console.error(err);
@@ -689,7 +705,9 @@ function render(){
     });
     row.querySelector('.del').onclick = (evt) => {
       evt.stopPropagation();
-      deleteEntry(e.id);
+      if(confirm("Excluir este lançamento?")){
+        deleteEntry(e.id);
+      }
     };
     listEl.appendChild(row);
   });
@@ -722,7 +740,7 @@ function renderGoal(){
   const fillEl = document.getElementById('goalBarFill');
 
   fillEl.style.width = pct.toFixed(0) + "%";
-  textEl.textContent = "Faltam " + fmt(remaining) + " para a passagem pra ver o Luca";
+  textEl.textContent = "Meta: " + fmt(target) + " pra visitar o Luca";
 }
 
 function renderUpdatedLine(){
@@ -734,8 +752,22 @@ function renderUpdatedLine(){
   el.textContent = "Atualizado às " + time;
 }
 
+document.getElementById('backupBtn').onclick = () => {
+  const data = JSON.stringify({ entries, exportedAt: new Date().toISOString() }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'xyko-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 populateCategories();
 load();
 </script>
-</body>
-</html>
+
+
+</body></html>
