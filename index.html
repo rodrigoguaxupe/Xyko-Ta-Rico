@@ -141,7 +141,8 @@
     flex:1;height:8px;background:var(--line);border-radius:4px;overflow:hidden;
   }
   .cat-bar-fill{height:100%; background:var(--accent); border-radius:4px;}
-  .cat-bar-amt{width:64px; text-align:right; flex-shrink:0; font-variant-numeric:tabular-nums;}
+  .cat-bar-amt{width:88px; text-align:right; flex-shrink:0; font-variant-numeric:tabular-nums;}
+  .cat-bar-pct{color:var(--ink-soft); font-size:11px;}
 
   .ledger{
     background:var(--surface);
@@ -309,13 +310,11 @@
   .goal-text{font-size:13px; color:var(--ink); font-weight:600; margin-bottom:6px;}
   .goal-bar-track{height:7px; background:var(--line); border-radius:4px; overflow:hidden;}
   .goal-bar-fill{height:100%; background:var(--accent); border-radius:4px; transition:width .3s ease;}
+  .goal-progress{font-size:11px; color:var(--ink-soft); margin-top:6px;}
   .goal-reset-btn{
     flex-shrink:0;
     background:var(--primary); color:white; border:none;
     padding:8px 12px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer;
-  }
-  .updated-line{
-    text-align:right; font-size:11px; color:var(--ink-soft); margin:8px 4px 0;
   }
   .field-row{
     display:flex; align-items:center; gap:8px; margin-top:16px;
@@ -340,10 +339,9 @@
     <div class="goal-info">
       <div class="goal-text" id="goalText">Meta: R$5.000 pra visitar o Luca</div>
       <div class="goal-bar-track"><div class="goal-bar-fill" id="goalBarFill" style="width:0%"></div></div>
+      <div class="goal-progress" id="goalProgress">R$0 guardados · faltam R$5.000</div>
     </div>
   </div>
-
-  <div class="updated-line" id="updatedLine">Atualizado às 18:49</div>
 
   <div class="month-nav">
     <button id="prevMonth">‹</button>
@@ -367,7 +365,7 @@
   </div>
 
   <div class="section-title" id="catTitle" style="display: block;">Por categoria</div>
-  <div id="catBars"><div class="cat-bar-row"><div class="cat-bar-name">Supermercado</div><div class="cat-bar-track"><div class="cat-bar-fill" style="width:100%"></div></div><div class="cat-bar-amt">R$100</div></div></div>
+  <div id="catBars"><div class="cat-bar-row"><div class="cat-bar-name">Supermercado</div><div class="cat-bar-track"><div class="cat-bar-fill" style="width:100%; background:#C9A227"></div></div><div class="cat-bar-amt">R$100 <span class="cat-bar-pct">100%</span></div></div></div>
 
   <div class="section-title">Lançamentos</div>
   <div class="ledger" id="ledgerList"><div class="entry" style="cursor: pointer;">
@@ -600,7 +598,7 @@ async function persist(){
   try{
     statusEl.textContent = "Salvando…";
     await entriesRef.set(entriesToObj(entries));
-    statusEl.textContent = "Salvo";
+    statusEl.textContent = savedStatusText();
   }catch(e){
     console.error(e);
     statusEl.textContent = "Não foi possível salvar — verifique sua conexão.";
@@ -617,7 +615,7 @@ function load(){
   statusEl.textContent = "Conectando…";
   entriesRef.on('value', (snapshot) => {
     entries = objToEntries(snapshot.val());
-    statusEl.textContent = "Salvo";
+    statusEl.textContent = savedStatusText();
     render();
   }, (err) => {
     console.error(err);
@@ -633,9 +631,20 @@ async function deleteEntry(id){
 
 function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0'); }
 
+const CATEGORY_COLORS = {
+  'Supermercado': '#C9A227',
+  'Médico/Farmácia': '#B5675D',
+  'Manutenção Casa': '#6B8F71',
+  'Restaurantes': '#A67C52',
+  'Compras': '#7C90A0',
+  'Lazer': '#8E6C88',
+  'Presentes': '#4F86A6',
+  'Igreja': '#2F5D4E'
+};
+function categoryColor(cat){ return CATEGORY_COLORS[cat] || '#9A9A8F'; }
+
 function render(){
   renderGoal();
-  renderUpdatedLine();
   const mk = monthKey(viewDate);
   document.getElementById('monthLabel').textContent = viewDate.toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
 
@@ -665,7 +674,8 @@ function render(){
     catEntries.forEach(([cat,amt])=>{
       const row = document.createElement('div');
       row.className = 'cat-bar-row';
-      row.innerHTML = `<div class="cat-bar-name">${cat}</div><div class="cat-bar-track"><div class="cat-bar-fill" style="width:${(amt/max*100).toFixed(0)}%"></div></div><div class="cat-bar-amt">${fmt(amt)}</div>`;
+      const pct = expense > 0 ? Math.round((amt/expense)*100) : 0;
+      row.innerHTML = `<div class="cat-bar-name">${cat}</div><div class="cat-bar-track"><div class="cat-bar-fill" style="width:${(amt/max*100).toFixed(0)}%; background:${categoryColor(cat)}"></div></div><div class="cat-bar-amt">${fmt(amt)} <span class="cat-bar-pct">${pct}%</span></div>`;
       catBarsEl.appendChild(row);
     });
   } else {
@@ -727,22 +737,24 @@ function renderGoal(){
   let target = GOAL_STEP;
   while(goalNet >= target){ target += GOAL_STEP; }
 
-  const remaining = target - goalNet;
+  const savedAmt = Math.max(0, goalNet);
+  const remaining = Math.max(0, target - goalNet);
   const pct = Math.max(0, Math.min(100, (goalNet / target) * 100));
   const textEl = document.getElementById('goalText');
   const fillEl = document.getElementById('goalBarFill');
+  const progressEl = document.getElementById('goalProgress');
 
   fillEl.style.width = pct.toFixed(0) + "%";
   textEl.textContent = "Meta: " + fmt(target) + " pra visitar o Luca";
+  progressEl.textContent = fmt(savedAmt) + " guardados · faltam " + fmt(remaining);
 }
 
-function renderUpdatedLine(){
-  const el = document.getElementById('updatedLine');
-  if(!entries.length){ el.textContent = ""; return; }
+function savedStatusText(){
+  if(!entries.length) return "Salvo";
   const latest = Math.max(...entries.map(e => e.createdAt || 0));
-  if(!latest){ el.textContent = ""; return; }
+  if(!latest) return "Salvo";
   const time = new Date(latest).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
-  el.textContent = "Atualizado às " + time;
+  return "Salvo às " + time;
 }
 
 document.getElementById('backupBtn').onclick = () => {
