@@ -143,6 +143,14 @@
   .cat-bar-fill{height:100%; background:var(--accent); border-radius:4px;}
   .cat-bar-amt{width:88px; text-align:right; flex-shrink:0; font-variant-numeric:tabular-nums;}
   .cat-bar-pct{color:var(--ink-soft); font-size:11px;}
+  .budget-bar-row{margin-bottom:12px;}
+  .budget-bar-top{display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;}
+  .budget-bar-name{font-weight:600; color:var(--ink);}
+  .budget-bar-amt{color:var(--ink-soft); font-variant-numeric:tabular-nums;}
+  .budget-bar-amt.over{color:#B23B3B; font-weight:600;}
+  .budget-bar-track{height:8px; background:var(--line); border-radius:4px; overflow:hidden;}
+  .budget-bar-fill{height:100%; border-radius:4px; transition:width .3s ease;}
+  .budget-bar-note{font-size:11px; color:#B23B3B; margin-top:3px;}
 
   .ledger{
     background:var(--surface);
@@ -277,6 +285,12 @@
     color:var(--ink);
   }
   textarea{resize:none; min-height:44px;}
+  .new-cat-actions{display:flex; gap:8px; margin-top:8px;}
+  .new-cat-btn{
+    flex:1; padding:10px; border-radius:10px; border:1px solid var(--line-strong);
+    font-size:13px; font-weight:600; cursor:pointer; background:var(--surface); color:var(--ink-soft);
+  }
+  .new-cat-btn.confirm{background:var(--primary); color:white; border-color:var(--primary);}
   .sheet-actions{
     display:flex; gap:10px; margin-top:20px;
   }
@@ -367,6 +381,9 @@
   <div class="section-title" id="catTitle" style="display: block;">Por categoria</div>
   <div id="catBars"><div class="cat-bar-row"><div class="cat-bar-name">Supermercado</div><div class="cat-bar-track"><div class="cat-bar-fill" style="width:100%; background:#C9A227"></div></div><div class="cat-bar-amt">R$100 <span class="cat-bar-pct">100%</span></div></div></div>
 
+  <div class="section-title">Fique de olho</div>
+  <div id="budgetBars"></div>
+
   <div class="section-title">Lançamentos</div>
   <div class="ledger" id="ledgerList"><div class="entry" style="cursor: pointer;">
       <div class="mid">
@@ -397,6 +414,13 @@
     <div id="categoryFieldWrap">
       <label>Categoria</label>
       <select id="categoryInput"><option value="Supermercado">Supermercado</option><option value="Médico/Farmácia">Médico/Farmácia</option><option value="Manutenção Casa">Manutenção Casa</option><option value="Restaurantes">Restaurantes</option><option value="Compras">Compras</option><option value="Lazer">Lazer</option><option value="Presentes">Presentes</option><option value="Igreja">Igreja</option></select>
+      <div id="newCategoryField" style="display:none;">
+        <input type="text" id="newCategoryInput" placeholder="Nome da nova categoria">
+        <div class="new-cat-actions">
+          <button type="button" id="cancelNewCategory" class="new-cat-btn cancel">Cancelar</button>
+          <button type="button" id="confirmNewCategory" class="new-cat-btn confirm">Adicionar</button>
+        </div>
+      </div>
     </div>
 
     <div class="field-row" id="parcelarRow" style="display:none;">
@@ -434,17 +458,24 @@ const firebaseConfig = {
   appId: "1:158983546652:web:6a26c89cbf371d7d397cd9"
 };
 let entriesRef = null;
+let categoriesRef = null;
 let firebaseError = null;
 try{
   firebase.initializeApp(firebaseConfig);
   entriesRef = firebase.database().ref('entries');
+  categoriesRef = firebase.database().ref('customCategories');
 }catch(e){
   console.error('Firebase init failed:', e);
   firebaseError = e;
 }
 
-const EXPENSE_CATS = ["Supermercado","Médico/Farmácia","Manutenção Casa","Restaurantes","Compras","Lazer","Presentes","Igreja"];
+const EXPENSE_CATS_BASE = ["Supermercado","Médico/Farmácia","Manutenção Casa","Restaurantes","Compras","Lazer","Presentes","Igreja"];
+let EXPENSE_CATS = [...EXPENSE_CATS_BASE];
 const INCOME_CATS = ["Receita"];
+const BUDGET_LIMITS = [
+  {cat: "Supermercado", limit: 2000},
+  {cat: "Manutenção Casa", limit: 1000}
+];
 
 let entries = [];
 let currentType = "expense";
@@ -467,6 +498,12 @@ function populateCategories(){
     opt.value = c; opt.textContent = c;
     sel.appendChild(opt);
   });
+  if(currentType === "expense"){
+    const newOpt = document.createElement('option');
+    newOpt.value = "__new__";
+    newOpt.textContent = "+ Nova categoria…";
+    sel.appendChild(newOpt);
+  }
 }
 
 function setType(t){
@@ -475,6 +512,7 @@ function setType(t){
   document.getElementById('typeIncome').classList.toggle('active', t === 'income');
   populateCategories();
   document.getElementById('categoryFieldWrap').style.display = (t === 'income') ? 'none' : 'block';
+  document.getElementById('newCategoryField').style.display = 'none';
   updateParcelarVisibility();
 }
 
@@ -493,6 +531,17 @@ document.getElementById('parcelarCheck').onchange = (e) => {
 
 document.getElementById('typeExpense').onclick = () => setType('expense');
 document.getElementById('typeIncome').onclick = () => setType('income');
+
+document.getElementById('categoryInput').addEventListener('change', (e) => {
+  if(e.target.value === "__new__"){
+    showNewCategoryField();
+  }
+});
+document.getElementById('confirmNewCategory').onclick = () => confirmNewCategory();
+document.getElementById('cancelNewCategory').onclick = () => hideNewCategoryField(EXPENSE_CATS[0]);
+document.getElementById('newCategoryInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); confirmNewCategory(); }
+});
 
 document.getElementById('openAdd').onclick = () => {
   editingId = null;
@@ -641,7 +690,64 @@ const CATEGORY_COLORS = {
   'Presentes': '#4F86A6',
   'Igreja': '#2F5D4E'
 };
-function categoryColor(cat){ return CATEGORY_COLORS[cat] || '#9A9A8F'; }
+const EXTRA_COLOR_PALETTE = [
+  '#D98E73','#5C8A8A','#A3A15B','#9C6B9E','#4F7B6B','#C77B9B',
+  '#7D8F4F','#5E7EA8','#B08A4E','#7A6BAE','#5AA089','#B5566B'
+];
+let customCategoryColors = {};
+
+function categoryColor(cat){
+  return CATEGORY_COLORS[cat] || customCategoryColors[cat] || '#9A9A8F';
+}
+function nextCustomColor(){
+  const usedCount = Object.keys(customCategoryColors).length;
+  return EXTRA_COLOR_PALETTE[usedCount % EXTRA_COLOR_PALETTE.length];
+}
+function applyCustomCategories(obj){
+  customCategoryColors = obj || {};
+  EXPENSE_CATS = [...EXPENSE_CATS_BASE, ...Object.keys(customCategoryColors)];
+}
+function loadCategories(){
+  if(!categoriesRef) return;
+  categoriesRef.on('value', (snapshot) => {
+    applyCustomCategories(snapshot.val());
+    populateCategories();
+    render();
+  });
+}
+function showNewCategoryField(){
+  document.getElementById('newCategoryField').style.display = 'block';
+  const input = document.getElementById('newCategoryInput');
+  input.value = "";
+  input.focus();
+}
+function hideNewCategoryField(resetTo){
+  document.getElementById('newCategoryField').style.display = 'none';
+  document.getElementById('categoryInput').value = resetTo;
+}
+async function confirmNewCategory(){
+  const sel = document.getElementById('categoryInput');
+  const name = document.getElementById('newCategoryInput').value.trim();
+  if(!name){
+    hideNewCategoryField(EXPENSE_CATS[0]);
+    return;
+  }
+  const exists = EXPENSE_CATS.some(c => c.toLowerCase() === name.toLowerCase());
+  if(exists){
+    alert("Essa categoria já existe.");
+    hideNewCategoryField(EXPENSE_CATS.find(c => c.toLowerCase() === name.toLowerCase()));
+    return;
+  }
+  customCategoryColors[name] = nextCustomColor();
+  EXPENSE_CATS = [...EXPENSE_CATS_BASE, ...Object.keys(customCategoryColors)];
+  populateCategories();
+  hideNewCategoryField(name);
+  sel.value = name;
+  if(categoriesRef){
+    try{ await categoriesRef.set(customCategoryColors); }
+    catch(e){ console.error('Failed to save new category:', e); }
+  }
+}
 
 function render(){
   renderGoal();
@@ -681,6 +787,26 @@ function render(){
   } else {
     catTitle.style.display = "none";
   }
+
+  const budgetBarsEl = document.getElementById('budgetBars');
+  budgetBarsEl.innerHTML = "";
+  BUDGET_LIMITS.forEach(({cat, limit}) => {
+    const spent = catTotals[cat] || 0;
+    const pct = Math.min(100, (spent/limit)*100);
+    const over = spent > limit;
+    const fillColor = over ? '#B23B3B' : categoryColor(cat);
+    const row = document.createElement('div');
+    row.className = 'budget-bar-row';
+    row.innerHTML = `
+      <div class="budget-bar-top">
+        <span class="budget-bar-name">${cat}</span>
+        <span class="budget-bar-amt${over ? ' over' : ''}">${fmt(spent)} de ${fmt(limit)}</span>
+      </div>
+      <div class="budget-bar-track"><div class="budget-bar-fill" style="width:${pct.toFixed(0)}%; background:${fillColor}"></div></div>
+      ${over ? `<div class="budget-bar-note">${fmt(spent-limit)} acima do limite</div>` : ''}
+    `;
+    budgetBarsEl.appendChild(row);
+  });
 
   const listEl = document.getElementById('ledgerList');
   listEl.innerHTML = "";
@@ -772,6 +898,7 @@ document.getElementById('backupBtn').onclick = () => {
 
 populateCategories();
 load();
+loadCategories();
 </script>
 
 
