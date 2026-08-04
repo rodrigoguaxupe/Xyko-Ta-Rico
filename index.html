@@ -120,6 +120,9 @@
   }
   .in-color{color:#BFE3CE;}
   .out-color{color:#F3C6BE;}
+  .summary-bar-track{height:7px; background:rgba(255,255,255,0.18); border-radius:4px; overflow:hidden; margin-top:18px;}
+  .summary-bar-fill{height:100%; background:#E8C468; border-radius:4px; transition:width .3s ease;}
+  .summary-bar-label{font-size:11px; color:rgba(255,255,255,0.75); margin-top:6px;}
 
   .section-title{
     font-size:12px;
@@ -351,9 +354,9 @@
   <div class="goal-card" id="goalCard">
     <div class="goal-icon">✈️</div>
     <div class="goal-info">
-      <div class="goal-text" id="goalText">Meta: R$5.000 pra visitar o Luca</div>
+      <div class="goal-text" id="goalText">Economia do mês passado: R$0</div>
       <div class="goal-bar-track"><div class="goal-bar-fill" id="goalBarFill" style="width:0%"></div></div>
-      <div class="goal-progress" id="goalProgress">R$0 guardados · faltam R$5.000</div>
+      <div class="goal-progress" id="goalProgress">Meta: R$5.000 pra visitar o Luca</div>
     </div>
   </div>
 
@@ -376,6 +379,8 @@
         <div class="amt out-color" id="outAmt">R$100</div>
       </div>
     </div>
+    <div class="summary-bar-track"><div class="summary-bar-fill" id="summaryBarFill" style="width:0%"></div></div>
+    <div class="summary-bar-label" id="summaryBarLabel">0% da renda gasta este mês</div>
   </div>
 
   <div class="section-title" id="catTitle" style="display: block;">Por categoria</div>
@@ -481,7 +486,6 @@ let entries = [];
 let currentType = "expense";
 let viewDate = new Date();
 let editingId = null;
-const goalResetAt = "2000-01-01";
 const GOAL_STEP = 5000;
 
 const fmt = (n) => {
@@ -548,7 +552,7 @@ document.getElementById('openAdd').onclick = () => {
   document.getElementById('sheetTitle').textContent = "Novo lançamento";
   document.getElementById('amountInput').value = "";
   document.getElementById('noteInput').value = "";
-  document.getElementById('dateInput').value = new Date().toISOString().slice(0,10);
+  document.getElementById('dateInput').value = localISODate();
   document.getElementById('parcelarCheck').checked = false;
   document.getElementById('installmentsField').style.display = 'none';
   document.getElementById('installmentsInput').value = 2;
@@ -577,7 +581,7 @@ document.getElementById('saveAdd').onclick = async () => {
     alert("Digite um valor maior que 0.");
     return;
   }
-  const date = document.getElementById('dateInput').value || new Date().toISOString().slice(0,10);
+  const date = document.getElementById('dateInput').value || localISODate();
   const category = document.getElementById('categoryInput').value;
   const note = document.getElementById('noteInput').value.trim();
 
@@ -679,6 +683,13 @@ async function deleteEntry(id){
 }
 
 function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0'); }
+function localISODate(d){
+  d = d || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return y + "-" + m + "-" + day;
+}
 
 const CATEGORY_COLORS = {
   'Supermercado': '#C9A227',
@@ -765,6 +776,12 @@ function render(){
   document.getElementById('netAmt').style.color = net < 0 ? '#F3C6BE' : '#F3F6F1';
   document.getElementById('inAmt').textContent = fmt(income);
   document.getElementById('outAmt').textContent = fmt(expense);
+
+  const spendPct = income > 0 ? Math.round((expense/income)*100) : (expense > 0 ? 100 : 0);
+  const barPct = Math.max(0, Math.min(100, spendPct));
+  document.getElementById('summaryBarFill').style.width = barPct + '%';
+  document.getElementById('summaryBarFill').style.background = spendPct > 100 ? '#F3908A' : '#E8C468';
+  document.getElementById('summaryBarLabel').textContent = spendPct + '% da renda gasta este mês';
 
   const catTotals = {};
   monthEntries.filter(e=>e.type==='expense').forEach(e=>{
@@ -855,24 +872,30 @@ document.getElementById('backdrop').onclick = (e) => {
   if(e.target.id === 'backdrop') document.getElementById('backdrop').classList.remove('open');
 };
 
+const GOAL_TRACKING_START = new Date(2026, 8, 1); // September 2026 — first month with a real "previous month" to report
+
 function renderGoal(){
-  const goalNet = entries
-    .filter(e => e.date && e.date >= goalResetAt)
-    .reduce((s,e) => s + (e.type === 'income' ? e.amount : -e.amount), 0);
+  const viewMonthStart = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  let lastMonthSaved = 0;
 
-  let target = GOAL_STEP;
-  while(goalNet >= target){ target += GOAL_STEP; }
+  if(viewMonthStart >= GOAL_TRACKING_START){
+    const prevMonthDate = new Date(viewMonthStart.getFullYear(), viewMonthStart.getMonth() - 1, 1);
+    const prevMk = monthKey(prevMonthDate);
+    const prevIncome = entries.filter(e => e.type === 'income' && e.date && e.date.slice(0,7) === prevMk)
+                               .reduce((s,e) => s + e.amount, 0);
+    const prevExpense = entries.filter(e => e.type === 'expense' && e.date && e.date.slice(0,7) === prevMk)
+                                .reduce((s,e) => s + e.amount, 0);
+    lastMonthSaved = Math.max(0, prevIncome - prevExpense);
+  }
 
-  const savedAmt = Math.max(0, goalNet);
-  const remaining = Math.max(0, target - goalNet);
-  const pct = Math.max(0, Math.min(100, (goalNet / target) * 100));
+  const pct = Math.max(0, Math.min(100, (lastMonthSaved / GOAL_STEP) * 100));
   const textEl = document.getElementById('goalText');
   const fillEl = document.getElementById('goalBarFill');
   const progressEl = document.getElementById('goalProgress');
 
   fillEl.style.width = pct.toFixed(0) + "%";
-  textEl.textContent = "Meta: " + fmt(target) + " pra visitar o Luca";
-  progressEl.textContent = fmt(savedAmt) + " guardados · faltam " + fmt(remaining);
+  textEl.textContent = "Economia do mês passado: " + fmt(lastMonthSaved);
+  progressEl.textContent = "Meta: " + fmt(GOAL_STEP) + " pra visitar o Luca";
 }
 
 function savedStatusText(){
@@ -889,7 +912,7 @@ document.getElementById('backupBtn').onclick = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'xyko-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  a.download = 'xyko-backup-' + localISODate() + '.json';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
