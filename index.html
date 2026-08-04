@@ -154,6 +154,12 @@
   .budget-bar-track{height:8px; background:var(--line); border-radius:4px; overflow:hidden;}
   .budget-bar-fill{height:100%; border-radius:4px; transition:width .3s ease;}
   .budget-bar-note{font-size:11px; color:#B23B3B; margin-top:3px;}
+  .budget-limit-value{cursor:pointer; border-bottom:1px dotted var(--ink-soft);}
+  .budget-limit-input{
+    width:72px; font-size:13px; padding:2px 6px; border-radius:6px;
+    border:1px solid var(--line-strong); text-align:right;
+    font-variant-numeric:tabular-nums; margin:0;
+  }
 
   .ledger{
     background:var(--surface);
@@ -224,6 +230,17 @@
     z-index:20;
   }
   .backup-btn:active{ opacity:0.8; }
+  .undo-toast{
+    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:#fff; padding:12px 18px; border-radius:12px;
+    display:flex; align-items:center; gap:16px; font-size:13px;
+    opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;
+    z-index:50; box-shadow:0 6px 20px rgba(0,0,0,0.25);
+  }
+  .undo-toast.show{ opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+  .undo-toast button{
+    background:none; border:none; color:#E8C468; font-weight:700; font-size:13px; cursor:pointer; padding:2px;
+  }
 
   .sheet-backdrop{
     position:fixed; inset:0;
@@ -403,7 +420,11 @@
 </div>
 
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
-<button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup">⤓</button>
+<button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
+<div class="undo-toast" id="undoToast">
+  <span>Excluído</span>
+  <button id="undoBtn">Desfazer</button>
+</div>
 
 <div class="sheet-backdrop" id="backdrop">
   <div class="sheet">
@@ -464,11 +485,13 @@ const firebaseConfig = {
 };
 let entriesRef = null;
 let categoriesRef = null;
+let budgetLimitsRef = null;
 let firebaseError = null;
 try{
   firebase.initializeApp(firebaseConfig);
   entriesRef = firebase.database().ref('entries');
   categoriesRef = firebase.database().ref('customCategories');
+  budgetLimitsRef = firebase.database().ref('budgetLimits');
 }catch(e){
   console.error('Firebase init failed:', e);
   firebaseError = e;
@@ -477,10 +500,10 @@ try{
 const EXPENSE_CATS_BASE = ["Supermercado","Médico/Farmácia","Manutenção Casa","Restaurantes","Compras","Lazer","Presentes","Igreja"];
 let EXPENSE_CATS = [...EXPENSE_CATS_BASE];
 const INCOME_CATS = ["Receita"];
-const BUDGET_LIMITS = [
-  {cat: "Supermercado", limit: 2000},
-  {cat: "Manutenção Casa", limit: 1000}
-];
+let budgetLimits = {
+  "Supermercado": 2000,
+  "Manutenção Casa": 1000
+};
 
 let entries = [];
 let currentType = "expense";
@@ -676,8 +699,35 @@ function load(){
   });
 }
 
+let lastDeletedEntry = null;
+let undoTimer = null;
+
 async function deleteEntry(id){
+  const idx = entries.findIndex(e => e.id === id);
+  if(idx === -1) return;
+  lastDeletedEntry = entries[idx];
   entries = entries.filter(e => e.id !== id);
+  render();
+  await persist();
+  showUndoToast();
+}
+
+function showUndoToast(){
+  clearTimeout(undoTimer);
+  const toast = document.getElementById('undoToast');
+  toast.classList.add('show');
+  undoTimer = setTimeout(() => {
+    toast.classList.remove('show');
+    lastDeletedEntry = null;
+  }, 6000);
+}
+
+async function undoDelete(){
+  if(!lastDeletedEntry) return;
+  entries.push(lastDeletedEntry);
+  lastDeletedEntry = null;
+  clearTimeout(undoTimer);
+  document.getElementById('undoToast').classList.remove('show');
   render();
   await persist();
 }
@@ -718,12 +768,54 @@ function applyCustomCategories(obj){
   customCategoryColors = obj || {};
   EXPENSE_CATS = [...EXPENSE_CATS_BASE, ...Object.keys(customCategoryColors)];
 }
+function startEditLimit(el){
+  const cat = el.dataset.cat;
+  const current = budgetLimits[cat];
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.inputMode = 'decimal';
+  input.className = 'budget-limit-input';
+  input.value = current;
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  const commit = async () => {
+    if(committed) return;
+    committed = true;
+    const val = parseFloat(input.value);
+    if(val && val > 0){
+      budgetLimits = { ...budgetLimits, [cat]: val };
+      if(budgetLimitsRef){
+        try{ await budgetLimitsRef.set(budgetLimits); }
+        catch(e){ console.error('Failed to save budget limit:', e); }
+      }
+    }
+    render();
+  };
+  input.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){ e.preventDefault(); input.blur(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
 function loadCategories(){
   if(!categoriesRef) return;
   categoriesRef.on('value', (snapshot) => {
     applyCustomCategories(snapshot.val());
     populateCategories();
     render();
+  });
+}
+function loadBudgetLimits(){
+  if(!budgetLimitsRef) return;
+  budgetLimitsRef.on('value', (snapshot) => {
+    const val = snapshot.val();
+    if(val && Object.keys(val).length){
+      budgetLimits = val;
+      render();
+    }
   });
 }
 function showNewCategoryField(){
@@ -807,7 +899,8 @@ function render(){
 
   const budgetBarsEl = document.getElementById('budgetBars');
   budgetBarsEl.innerHTML = "";
-  BUDGET_LIMITS.forEach(({cat, limit}) => {
+  Object.keys(budgetLimits).forEach((cat) => {
+    const limit = budgetLimits[cat];
     const spent = catTotals[cat] || 0;
     const pct = Math.min(100, (spent/limit)*100);
     const over = spent > limit;
@@ -817,12 +910,15 @@ function render(){
     row.innerHTML = `
       <div class="budget-bar-top">
         <span class="budget-bar-name">${cat}</span>
-        <span class="budget-bar-amt${over ? ' over' : ''}">${fmt(spent)} de ${fmt(limit)}</span>
+        <span class="budget-bar-amt${over ? ' over' : ''}">${fmt(spent)} de <span class="budget-limit-value" data-cat="${cat}">${fmt(limit)}</span></span>
       </div>
       <div class="budget-bar-track"><div class="budget-bar-fill" style="width:${pct.toFixed(0)}%; background:${fillColor}"></div></div>
       ${over ? `<div class="budget-bar-note">${fmt(spent-limit)} acima do limite</div>` : ''}
     `;
     budgetBarsEl.appendChild(row);
+  });
+  budgetBarsEl.querySelectorAll('.budget-limit-value').forEach((el) => {
+    el.addEventListener('click', () => startEditLimit(el));
   });
 
   const listEl = document.getElementById('ledgerList');
@@ -906,6 +1002,8 @@ function savedStatusText(){
   return "Salvo às " + time;
 }
 
+document.getElementById('undoBtn').onclick = () => undoDelete();
+
 document.getElementById('backupBtn').onclick = () => {
   const data = JSON.stringify({ entries, exportedAt: new Date().toISOString() }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
@@ -922,6 +1020,7 @@ document.getElementById('backupBtn').onclick = () => {
 populateCategories();
 load();
 loadCategories();
+loadBudgetLimits();
 </script>
 
 
