@@ -230,6 +230,14 @@
     z-index:20;
   }
   .backup-btn:active{ opacity:0.8; }
+  .version-label{
+    position:fixed;
+    bottom:24px; left:50px;
+    font-size:11px; color:var(--ink-soft);
+    opacity:0.45;
+    z-index:20;
+    pointer-events:none;
+  }
   .undo-toast{
     position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(20px);
     background:var(--ink); color:#fff; padding:12px 18px; border-radius:12px;
@@ -429,6 +437,7 @@
 
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
+<div class="version-label">versão 25</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
