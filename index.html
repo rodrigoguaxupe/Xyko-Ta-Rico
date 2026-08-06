@@ -311,6 +311,14 @@
     font-size:13px; font-weight:600; cursor:pointer; background:var(--surface); color:var(--ink-soft);
   }
   .new-cat-btn.confirm{background:var(--primary); color:white; border-color:var(--primary);}
+  .category-select-row{display:flex; gap:8px; align-items:center;}
+  .category-select-row select{flex:1; margin:0;}
+  .edit-cat-btn{
+    flex-shrink:0; width:40px; height:40px; border-radius:10px;
+    border:1px solid var(--line-strong); background:var(--surface);
+    color:var(--ink-soft); font-size:15px; cursor:pointer;
+  }
+  .edit-cat-btn:active{opacity:0.7;}
   .sheet-actions{
     display:flex; gap:10px; margin-top:20px;
   }
@@ -439,12 +447,22 @@
 
     <div id="categoryFieldWrap">
       <label>Categoria</label>
-      <select id="categoryInput"><option value="Supermercado">Supermercado</option><option value="Médico/Farmácia">Médico/Farmácia</option><option value="Manutenção Casa">Manutenção Casa</option><option value="Restaurantes">Restaurantes</option><option value="Compras">Compras</option><option value="Lazer">Lazer</option><option value="Presentes">Presentes</option><option value="Igreja">Igreja</option></select>
+      <div class="category-select-row">
+        <select id="categoryInput"><option value="Supermercado">Supermercado</option><option value="Médico/Farmácia">Médico/Farmácia</option><option value="Manutenção Casa">Manutenção Casa</option><option value="Restaurantes">Restaurantes</option><option value="Compras">Compras</option><option value="Lazer">Lazer</option><option value="Presentes">Presentes</option><option value="Igreja">Igreja</option></select>
+        <button type="button" id="editCategoryBtn" class="edit-cat-btn" title="Editar nome da categoria" aria-label="Editar categoria">✎</button>
+      </div>
       <div id="newCategoryField" style="display:none;">
         <input type="text" id="newCategoryInput" placeholder="Nome da nova categoria">
         <div class="new-cat-actions">
           <button type="button" id="cancelNewCategory" class="new-cat-btn cancel">Cancelar</button>
           <button type="button" id="confirmNewCategory" class="new-cat-btn confirm">Adicionar</button>
+        </div>
+      </div>
+      <div id="renameCategoryField" style="display:none;">
+        <input type="text" id="renameCategoryInput" placeholder="Novo nome da categoria">
+        <div class="new-cat-actions">
+          <button type="button" id="cancelRenameCategory" class="new-cat-btn cancel">Cancelar</button>
+          <button type="button" id="confirmRenameCategoryBtn" class="new-cat-btn confirm">Salvar</button>
         </div>
       </div>
     </div>
@@ -540,6 +558,7 @@ function setType(t){
   populateCategories();
   document.getElementById('categoryFieldWrap').style.display = (t === 'income') ? 'none' : 'block';
   document.getElementById('newCategoryField').style.display = 'none';
+  document.getElementById('renameCategoryField').style.display = 'none';
   updateParcelarVisibility();
 }
 
@@ -568,6 +587,13 @@ document.getElementById('confirmNewCategory').onclick = () => confirmNewCategory
 document.getElementById('cancelNewCategory').onclick = () => hideNewCategoryField(EXPENSE_CATS[0]);
 document.getElementById('newCategoryInput').addEventListener('keydown', (e) => {
   if(e.key === 'Enter'){ e.preventDefault(); confirmNewCategory(); }
+});
+
+document.getElementById('editCategoryBtn').onclick = () => showRenameCategoryField();
+document.getElementById('cancelRenameCategory').onclick = () => hideRenameCategoryField();
+document.getElementById('confirmRenameCategoryBtn').onclick = () => confirmRenameCategory();
+document.getElementById('renameCategoryInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); confirmRenameCategory(); }
 });
 
 document.getElementById('openAdd').onclick = () => {
@@ -741,7 +767,7 @@ function localISODate(d){
   return y + "-" + m + "-" + day;
 }
 
-const CATEGORY_COLORS = {
+const DEFAULT_CATEGORY_COLORS = {
   'Supermercado': '#C9A227',
   'Médico/Farmácia': '#B5675D',
   'Manutenção Casa': '#6B8F71',
@@ -755,18 +781,14 @@ const EXTRA_COLOR_PALETTE = [
   '#D98E73','#5C8A8A','#A3A15B','#9C6B9E','#4F7B6B','#C77B9B',
   '#7D8F4F','#5E7EA8','#B08A4E','#7A6BAE','#5AA089','#B5566B'
 ];
-let customCategoryColors = {};
+let categoryColors = { ...DEFAULT_CATEGORY_COLORS };
 
 function categoryColor(cat){
-  return CATEGORY_COLORS[cat] || customCategoryColors[cat] || '#9A9A8F';
+  return categoryColors[cat] || '#9A9A8F';
 }
 function nextCustomColor(){
-  const usedCount = Object.keys(customCategoryColors).length;
+  const usedCount = Object.keys(categoryColors).length;
   return EXTRA_COLOR_PALETTE[usedCount % EXTRA_COLOR_PALETTE.length];
-}
-function applyCustomCategories(obj){
-  customCategoryColors = obj || {};
-  EXPENSE_CATS = [...EXPENSE_CATS_BASE, ...Object.keys(customCategoryColors)];
 }
 function startEditLimit(el){
   const cat = el.dataset.cat;
@@ -803,7 +825,13 @@ function startEditLimit(el){
 function loadCategories(){
   if(!categoriesRef) return;
   categoriesRef.on('value', (snapshot) => {
-    applyCustomCategories(snapshot.val());
+    let val = snapshot.val();
+    if(!val || !Object.keys(val).length){
+      val = { ...DEFAULT_CATEGORY_COLORS };
+      categoriesRef.set(val);
+    }
+    categoryColors = val;
+    EXPENSE_CATS = Object.keys(categoryColors);
     populateCategories();
     render();
   });
@@ -819,6 +847,7 @@ function loadBudgetLimits(){
   });
 }
 function showNewCategoryField(){
+  document.getElementById('renameCategoryField').style.display = 'none';
   document.getElementById('newCategoryField').style.display = 'block';
   const input = document.getElementById('newCategoryInput');
   input.value = "";
@@ -841,15 +870,71 @@ async function confirmNewCategory(){
     hideNewCategoryField(EXPENSE_CATS.find(c => c.toLowerCase() === name.toLowerCase()));
     return;
   }
-  customCategoryColors[name] = nextCustomColor();
-  EXPENSE_CATS = [...EXPENSE_CATS_BASE, ...Object.keys(customCategoryColors)];
+  categoryColors = { ...categoryColors, [name]: nextCustomColor() };
+  EXPENSE_CATS = Object.keys(categoryColors);
   populateCategories();
   hideNewCategoryField(name);
   sel.value = name;
   if(categoriesRef){
-    try{ await categoriesRef.set(customCategoryColors); }
+    try{ await categoriesRef.set(categoryColors); }
     catch(e){ console.error('Failed to save new category:', e); }
   }
+}
+
+function showRenameCategoryField(){
+  const sel = document.getElementById('categoryInput');
+  if(sel.value === '__new__') return;
+  document.getElementById('newCategoryField').style.display = 'none';
+  document.getElementById('renameCategoryField').style.display = 'block';
+  const input = document.getElementById('renameCategoryInput');
+  input.value = sel.value;
+  input.focus();
+  input.select();
+}
+function hideRenameCategoryField(){
+  document.getElementById('renameCategoryField').style.display = 'none';
+}
+async function confirmRenameCategory(){
+  const sel = document.getElementById('categoryInput');
+  const oldName = sel.value;
+  const newName = document.getElementById('renameCategoryInput').value.trim();
+  hideRenameCategoryField();
+  if(!newName || newName === oldName || oldName === '__new__') return;
+
+  const exists = EXPENSE_CATS.some(c => c.toLowerCase() === newName.toLowerCase() && c.toLowerCase() !== oldName.toLowerCase());
+  if(exists){
+    alert("Já existe uma categoria com esse nome.");
+    return;
+  }
+
+  const color = categoryColors[oldName] || nextCustomColor();
+  const newColors = { ...categoryColors };
+  delete newColors[oldName];
+  newColors[newName] = color;
+  categoryColors = newColors;
+  EXPENSE_CATS = Object.keys(categoryColors);
+
+  let newLimits = null;
+  if(budgetLimits[oldName] != null){
+    newLimits = { ...budgetLimits };
+    const lim = newLimits[oldName];
+    delete newLimits[oldName];
+    newLimits[newName] = lim;
+    budgetLimits = newLimits;
+  }
+
+  entries = entries.map(e => e.category === oldName ? { ...e, category: newName } : e);
+
+  populateCategories();
+  sel.value = newName;
+  render();
+
+  const tasks = [];
+  if(categoriesRef) tasks.push(categoriesRef.set(categoryColors));
+  if(budgetLimitsRef && newLimits) tasks.push(budgetLimitsRef.set(budgetLimits));
+  tasks.push(persist());
+  try{ await Promise.all(tasks); }
+  catch(e){ console.error('Rename sync failed:', e); }
 }
 
 function render(){
