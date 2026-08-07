@@ -461,7 +461,7 @@
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 26</div>
+<div class="version-label">versão 27</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -1169,7 +1169,7 @@ function render(){
   const income = monthEntries.filter(e => e.type === 'income').reduce((s,e)=>s+e.amount,0);
   const variableExpense = monthEntries.filter(e => e.type === 'expense' && !isFixedCategory(e.category)).reduce((s,e)=>s+e.amount,0);
   const fixedExpense = monthEntries.filter(e => e.type === 'expense' && isFixedCategory(e.category)).reduce((s,e)=>s+e.amount,0);
-  const expense = variableExpense;
+  const expense = variableExpense + fixedExpense;
   const net = income - expense;
 
   document.getElementById('netAmt').textContent = fmt(net);
@@ -1197,7 +1197,7 @@ function render(){
     catEntries.forEach(([cat,amt])=>{
       const row = document.createElement('div');
       row.className = 'cat-bar-row';
-      const pct = expense > 0 ? Math.round((amt/expense)*100) : 0;
+      const pct = variableExpense > 0 ? Math.round((amt/variableExpense)*100) : 0;
       row.innerHTML = `<div class="cat-bar-name">${cat}</div><div class="cat-bar-track"><div class="cat-bar-fill" style="width:${(amt/max*100).toFixed(0)}%; background:${categoryColor(cat)}"></div></div><div class="cat-bar-amt">${fmt(amt)} <span class="cat-bar-pct">${pct}%</span></div>`;
       catBarsEl.appendChild(row);
     });
