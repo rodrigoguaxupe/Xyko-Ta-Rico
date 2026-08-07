@@ -230,9 +230,10 @@
     z-index:20;
   }
   .backup-btn:active{ opacity:0.8; }
+  .csv-btn{ left:50px; font-size:17px; }
   .version-label{
     position:fixed;
-    bottom:24px; left:50px;
+    bottom:24px; left:86px;
     font-size:11px; color:var(--ink-soft);
     opacity:0.45;
     z-index:20;
@@ -376,6 +377,16 @@
     margin:0 !important; text-transform:none !important; font-size:14px !important;
     color:var(--ink) !important; letter-spacing:normal !important;
   }
+  .recurring-note{
+    font-size:12px; color:var(--ink-soft); background:var(--bg);
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:14px;
+  }
+  .section-header{
+    font-size:19px; font-weight:700; color:var(--ink);
+    margin:36px 4px 14px; padding-top:22px; border-top:1px solid var(--line-strong);
+  }
+  .section-header:first-of-type{ border-top:none; padding-top:0; }
+  .fixed-card{ background:#6B5842 !important; }
 </style>
 </head>
 <body>
@@ -398,6 +409,8 @@
     <div class="month-label" id="monthLabel">julho de 2026</div>
     <button id="nextMonth">›</button>
   </div>
+
+  <div class="section-header">Gastos Variáveis</div>
 
   <div class="summary-card">
     <div class="summary-net-label">Saldo do mês</div>
@@ -422,6 +435,16 @@
   <div class="section-title">Fique de olho</div>
   <div id="budgetBars"></div>
 
+  <div class="section-header">Gastos Fixos</div>
+
+  <div class="summary-card fixed-card">
+    <div class="summary-net-label">Total do mês</div>
+    <div class="summary-net" id="fixedTotalAmt">R$0</div>
+  </div>
+
+  <div class="section-title" id="fixedCatTitle" style="display: block;">Por categoria</div>
+  <div id="fixedCatBars"></div>
+
   <div class="section-title">Lançamentos</div>
   <div class="ledger" id="ledgerList"><div class="entry" style="cursor: pointer;">
       <div class="mid">
@@ -437,7 +460,8 @@
 
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
-<div class="version-label">versão 25</div>
+<button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
+<div class="version-label">versão 26</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -485,6 +509,14 @@
       <input type="number" id="installmentsInput" min="2" max="24" value="2" inputmode="numeric">
     </div>
 
+    <div class="field-row" id="recorrenteRow" style="display:none;">
+      <input type="checkbox" id="recorrenteCheck">
+      <label class="inline-label" for="recorrenteCheck">Recorrente (repete todo mês)</label>
+    </div>
+    <div id="recorrenteEditNote" class="recurring-note" style="display:none;">
+      🔁 Recorrente — alterar o valor aqui atualiza os próximos meses automaticamente. Meses passados não mudam.
+    </div>
+
     <label>Data</label>
     <input type="date" id="dateInput">
 
@@ -513,20 +545,22 @@ const firebaseConfig = {
 let entriesRef = null;
 let categoriesRef = null;
 let budgetLimitsRef = null;
+let recurringTemplatesRef = null;
 let firebaseError = null;
 try{
   firebase.initializeApp(firebaseConfig);
   entriesRef = firebase.database().ref('entries');
   categoriesRef = firebase.database().ref('customCategories');
   budgetLimitsRef = firebase.database().ref('budgetLimits');
+  recurringTemplatesRef = firebase.database().ref('recurringTemplates');
 }catch(e){
   console.error('Firebase init failed:', e);
   firebaseError = e;
 }
 
-const EXPENSE_CATS_BASE = ["Supermercado","Médico/Farmácia","Manutenção Casa","Restaurantes","Compras","Lazer","Presentes","Igreja"];
-let EXPENSE_CATS = [...EXPENSE_CATS_BASE];
+let EXPENSE_CATS = ["Carro","Compras","Documentos","Gasolina","Igreja","Lazer","Manutenção Casa","Médico/Farmácia","Presentes","Restaurantes","Supermercado","Variados","Agua","Celulares","Conta Caixa","Dizimo","Faxina","IPTU*","IPVA e Seguro","Luz","Psicólogos","Sky","Unimed","Vó Rosa","Wifi e Uol"];
 const INCOME_CATS = ["Receita"];
+let recurringTemplates = {};
 let budgetLimits = {
   "Supermercado": 2000,
   "Manutenção Casa": 1000
@@ -546,18 +580,39 @@ const fmt = (n) => {
 function populateCategories(){
   const sel = document.getElementById('categoryInput');
   sel.innerHTML = "";
-  const list = currentType === "expense" ? EXPENSE_CATS : INCOME_CATS;
-  list.forEach(c => {
+  if(currentType !== "expense"){
+    INCOME_CATS.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    });
+    return;
+  }
+  const variableList = EXPENSE_CATS.filter(c => !isFixedCategory(c)).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const fixedList = EXPENSE_CATS.filter(c => isFixedCategory(c)).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+
+  const gVar = document.createElement('optgroup');
+  gVar.label = "Gastos Variáveis";
+  variableList.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c; opt.textContent = c;
-    sel.appendChild(opt);
+    gVar.appendChild(opt);
   });
-  if(currentType === "expense"){
-    const newOpt = document.createElement('option');
-    newOpt.value = "__new__";
-    newOpt.textContent = "+ Nova categoria…";
-    sel.appendChild(newOpt);
-  }
+  sel.appendChild(gVar);
+
+  const gFix = document.createElement('optgroup');
+  gFix.label = "Gastos Fixos";
+  fixedList.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    gFix.appendChild(opt);
+  });
+  sel.appendChild(gFix);
+
+  const newOpt = document.createElement('option');
+  newOpt.value = "__new__";
+  newOpt.textContent = "+ Nova categoria…";
+  sel.appendChild(newOpt);
 }
 
 function setType(t){
@@ -572,16 +627,34 @@ function setType(t){
 }
 
 function updateParcelarVisibility(){
-  const showParcelar = currentType === 'expense' && !editingId;
-  document.getElementById('parcelarRow').style.display = showParcelar ? 'flex' : 'none';
-  if(!showParcelar){
+  const isEditingRecurring = !!(editingId && entries.find(e => e.id === editingId && e.recurringId));
+  const showToggles = currentType === 'expense' && !editingId;
+
+  document.getElementById('parcelarRow').style.display = showToggles ? 'flex' : 'none';
+  if(!showToggles){
     document.getElementById('parcelarCheck').checked = false;
     document.getElementById('installmentsField').style.display = 'none';
   }
+
+  document.getElementById('recorrenteRow').style.display = showToggles ? 'flex' : 'none';
+  if(!showToggles){
+    document.getElementById('recorrenteCheck').checked = false;
+  }
+
+  document.getElementById('recorrenteEditNote').style.display = isEditingRecurring ? 'block' : 'none';
 }
 
 document.getElementById('parcelarCheck').onchange = (e) => {
   document.getElementById('installmentsField').style.display = e.target.checked ? 'block' : 'none';
+  if(e.target.checked){
+    document.getElementById('recorrenteCheck').checked = false;
+  }
+};
+document.getElementById('recorrenteCheck').onchange = (e) => {
+  if(e.target.checked){
+    document.getElementById('parcelarCheck').checked = false;
+    document.getElementById('installmentsField').style.display = 'none';
+  }
 };
 
 document.getElementById('typeExpense').onclick = () => setType('expense');
@@ -614,6 +687,7 @@ document.getElementById('openAdd').onclick = () => {
   document.getElementById('parcelarCheck').checked = false;
   document.getElementById('installmentsField').style.display = 'none';
   document.getElementById('installmentsInput').value = 2;
+  document.getElementById('recorrenteCheck').checked = false;
   setType('expense');
   document.getElementById('backdrop').classList.add('open');
 };
@@ -644,15 +718,52 @@ document.getElementById('saveAdd').onclick = async () => {
   const note = document.getElementById('noteInput').value.trim();
 
   const isParcelado = !editingId && currentType === 'expense' && document.getElementById('parcelarCheck').checked;
+  const isRecorrente = !editingId && currentType === 'expense' && document.getElementById('recorrenteCheck').checked;
   const installments = isParcelado
     ? Math.max(2, Math.min(24, parseInt(document.getElementById('installmentsInput').value) || 2))
     : 1;
+
+  let templateUpdate = null;
 
   if(editingId){
     const idx = entries.findIndex(e => e.id === editingId);
     if(idx !== -1){
       entries[idx] = { ...entries[idx], type: currentType, amount, category, date, note };
+      const recurringId = entries[idx].recurringId;
+      if(recurringId && recurringTemplates[recurringId]){
+        recurringTemplates = {
+          ...recurringTemplates,
+          [recurringId]: { ...recurringTemplates[recurringId], amount, category, note }
+        };
+        templateUpdate = recurringTemplates;
+      }
     }
+  } else if(isRecorrente){
+    const d = new Date(date + 'T00:00:00');
+    const tid = 'r_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+    recurringTemplates = {
+      ...recurringTemplates,
+      [tid]: {
+        category: category,
+        amount: amount,
+        note: note,
+        dayOfMonth: d.getDate(),
+        startYear: d.getFullYear(),
+        startMonth: d.getMonth(),
+        active: true
+      }
+    };
+    templateUpdate = recurringTemplates;
+    entries.push({
+      id: 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+      type: 'expense',
+      amount: amount,
+      category: category,
+      date: date,
+      note: note,
+      createdAt: Date.now(),
+      recurringId: tid
+    });
   } else if(installments > 1){
     const totalCents = Math.round(amount * 100);
     const baseCents = Math.floor(totalCents / installments);
@@ -667,7 +778,7 @@ document.getElementById('saveAdd').onclick = async () => {
         type: 'expense',
         amount: cents / 100,
         category: category,
-        date: d.toISOString().slice(0,10),
+        date: localISODate(d),
         note: note,
         createdAt: Date.now(),
         installmentIndex: i + 1,
@@ -689,6 +800,10 @@ document.getElementById('saveAdd').onclick = async () => {
   document.getElementById('backdrop').classList.remove('open');
   render();
   await persist();
+  if(templateUpdate && recurringTemplatesRef){
+    try{ await recurringTemplatesRef.set(templateUpdate); }
+    catch(e){ console.error('Failed to save recurring template:', e); }
+  }
 };
 
 function entriesToObj(arr){
@@ -726,8 +841,10 @@ function load(){
   statusEl.textContent = "Conectando…";
   entriesRef.on('value', (snapshot) => {
     entries = objToEntries(snapshot.val());
+    entriesLoadedOnce = true;
     statusEl.textContent = savedStatusText();
     render();
+    maybeGenerateRecurringEntries();
   }, (err) => {
     console.error(err);
     statusEl.textContent = "Não foi possível conectar — verifique sua internet.";
@@ -776,27 +893,52 @@ function localISODate(d){
   return y + "-" + m + "-" + day;
 }
 
-const DEFAULT_CATEGORY_COLORS = {
-  'Supermercado': '#C9A227',
-  'Médico/Farmácia': '#B5675D',
-  'Manutenção Casa': '#6B8F71',
-  'Restaurantes': '#A67C52',
-  'Compras': '#7C90A0',
-  'Lazer': '#8E6C88',
-  'Presentes': '#4F86A6',
-  'Igreja': '#2F5D4E'
+const DEFAULT_CATEGORY_META = {
+  // Gastos Variáveis
+  'Carro':            { color:'#D98E73', section:'variable' },
+  'Compras':          { color:'#7C90A0', section:'variable' },
+  'Documentos':       { color:'#5C8A8A', section:'variable' },
+  'Gasolina':         { color:'#A3A15B', section:'variable' },
+  'Igreja':           { color:'#2F5D4E', section:'variable' },
+  'Lazer':            { color:'#8E6C88', section:'variable' },
+  'Manutenção Casa':  { color:'#6B8F71', section:'variable' },
+  'Médico/Farmácia':  { color:'#B5675D', section:'variable' },
+  'Presentes':        { color:'#4F86A6', section:'variable' },
+  'Restaurantes':     { color:'#A67C52', section:'variable' },
+  'Supermercado':     { color:'#C9A227', section:'variable' },
+  'Variados':         { color:'#9C6B9E', section:'variable' },
+  // Gastos Fixos
+  'Agua':             { color:'#4F7B6B', section:'fixed' },
+  'Celulares':        { color:'#C77B9B', section:'fixed' },
+  'Conta Caixa':      { color:'#7D8F4F', section:'fixed' },
+  'Dizimo':           { color:'#5E7EA8', section:'fixed' },
+  'Faxina':           { color:'#B08A4E', section:'fixed' },
+  'IPTU*':            { color:'#7A6BAE', section:'fixed' },
+  'IPVA e Seguro':    { color:'#5AA089', section:'fixed' },
+  'Luz':              { color:'#B5566B', section:'fixed' },
+  'Psicólogos':       { color:'#8A6D9E', section:'fixed' },
+  'Sky':              { color:'#6B9BB0', section:'fixed' },
+  'Unimed':           { color:'#A87E5C', section:'fixed' },
+  'Vó Rosa':          { color:'#7BA05B', section:'fixed' },
+  'Wifi e Uol':       { color:'#9E7B6B', section:'fixed' }
 };
 const EXTRA_COLOR_PALETTE = [
   '#D98E73','#5C8A8A','#A3A15B','#9C6B9E','#4F7B6B','#C77B9B',
   '#7D8F4F','#5E7EA8','#B08A4E','#7A6BAE','#5AA089','#B5566B'
 ];
-let categoryColors = { ...DEFAULT_CATEGORY_COLORS };
+let categoryMeta = { ...DEFAULT_CATEGORY_META };
 
 function categoryColor(cat){
-  return categoryColors[cat] || '#9A9A8F';
+  return (categoryMeta[cat] && categoryMeta[cat].color) || '#9A9A8F';
+}
+function categorySection(cat){
+  return (categoryMeta[cat] && categoryMeta[cat].section) || 'variable';
+}
+function isFixedCategory(cat){
+  return categorySection(cat) === 'fixed';
 }
 function nextCustomColor(){
-  const usedCount = Object.keys(categoryColors).length;
+  const usedCount = Object.keys(categoryMeta).length;
   return EXTRA_COLOR_PALETTE[usedCount % EXTRA_COLOR_PALETTE.length];
 }
 function startEditLimit(el){
@@ -834,13 +976,22 @@ function startEditLimit(el){
 function loadCategories(){
   if(!categoriesRef) return;
   categoriesRef.on('value', (snapshot) => {
-    let val = snapshot.val();
-    if(!val || !Object.keys(val).length){
-      val = { ...DEFAULT_CATEGORY_COLORS };
-      categoriesRef.set(val);
+    let val = snapshot.val() || {};
+    let changed = false;
+    if(!Object.keys(val).length){
+      val = { ...DEFAULT_CATEGORY_META };
+      changed = true;
+    } else {
+      Object.keys(DEFAULT_CATEGORY_META).forEach((cat) => {
+        if(!val[cat]){
+          val[cat] = DEFAULT_CATEGORY_META[cat];
+          changed = true;
+        }
+      });
     }
-    categoryColors = val;
-    EXPENSE_CATS = Object.keys(categoryColors);
+    categoryMeta = val;
+    EXPENSE_CATS = Object.keys(categoryMeta);
+    if(changed) categoriesRef.set(val);
     populateCategories();
     render();
   });
@@ -855,6 +1006,61 @@ function loadBudgetLimits(){
     }
   });
 }
+
+let templatesLoadedOnce = false;
+let entriesLoadedOnce = false;
+function loadRecurringTemplates(){
+  if(!recurringTemplatesRef) return;
+  recurringTemplatesRef.on('value', (snapshot) => {
+    recurringTemplates = snapshot.val() || {};
+    templatesLoadedOnce = true;
+    maybeGenerateRecurringEntries();
+    render();
+  });
+}
+function daysInMonth(year, monthIndex){
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+async function maybeGenerateRecurringEntries(){
+  if(!templatesLoadedOnce || !entriesLoadedOnce) return;
+  const todayKey = monthKey(new Date());
+  let added = false;
+
+  Object.keys(recurringTemplates).forEach((tid) => {
+    const t = recurringTemplates[tid];
+    if(!t || t.active === false) return;
+    let cursor = new Date(t.startYear, t.startMonth, 1);
+    const endCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    while(cursor <= endCursor){
+      const y = cursor.getFullYear();
+      const m = cursor.getMonth();
+      const mk = y + "-" + String(m+1).padStart(2,'0');
+      const already = entries.some(e => e.recurringId === tid && e.date && e.date.slice(0,7) === mk);
+      if(!already){
+        const day = Math.min(t.dayOfMonth, daysInMonth(y, m));
+        const dateStr = mk + "-" + String(day).padStart(2,'0');
+        entries.push({
+          id: 'e_' + Date.now() + '_' + Math.random().toString(36).slice(2,7),
+          type: 'expense',
+          amount: t.amount,
+          category: t.category,
+          date: dateStr,
+          note: t.note || "",
+          createdAt: Date.now(),
+          recurringId: tid
+        });
+        added = true;
+      }
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+  });
+
+  if(added){
+    render();
+    await persist();
+  }
+}
+
 function showNewCategoryField(){
   document.getElementById('renameCategoryField').style.display = 'none';
   document.getElementById('newCategoryField').style.display = 'block';
@@ -879,13 +1085,13 @@ async function confirmNewCategory(){
     hideNewCategoryField(EXPENSE_CATS.find(c => c.toLowerCase() === name.toLowerCase()));
     return;
   }
-  categoryColors = { ...categoryColors, [name]: nextCustomColor() };
-  EXPENSE_CATS = Object.keys(categoryColors);
+  categoryMeta = { ...categoryMeta, [name]: { color: nextCustomColor(), section: 'variable' } };
+  EXPENSE_CATS = Object.keys(categoryMeta);
   populateCategories();
   hideNewCategoryField(name);
   sel.value = name;
   if(categoriesRef){
-    try{ await categoriesRef.set(categoryColors); }
+    try{ await categoriesRef.set(categoryMeta); }
     catch(e){ console.error('Failed to save new category:', e); }
   }
 }
@@ -916,12 +1122,12 @@ async function confirmRenameCategory(){
     return;
   }
 
-  const color = categoryColors[oldName] || nextCustomColor();
-  const newColors = { ...categoryColors };
-  delete newColors[oldName];
-  newColors[newName] = color;
-  categoryColors = newColors;
-  EXPENSE_CATS = Object.keys(categoryColors);
+  const meta = categoryMeta[oldName] || { color: nextCustomColor(), section: 'variable' };
+  const newMeta = { ...categoryMeta };
+  delete newMeta[oldName];
+  newMeta[newName] = meta;
+  categoryMeta = newMeta;
+  EXPENSE_CATS = Object.keys(categoryMeta);
 
   let newLimits = null;
   if(budgetLimits[oldName] != null){
@@ -933,14 +1139,20 @@ async function confirmRenameCategory(){
   }
 
   entries = entries.map(e => e.category === oldName ? { ...e, category: newName } : e);
+  Object.keys(recurringTemplates).forEach((tid) => {
+    if(recurringTemplates[tid].category === oldName){
+      recurringTemplates[tid] = { ...recurringTemplates[tid], category: newName };
+    }
+  });
 
   populateCategories();
   sel.value = newName;
   render();
 
   const tasks = [];
-  if(categoriesRef) tasks.push(categoriesRef.set(categoryColors));
+  if(categoriesRef) tasks.push(categoriesRef.set(categoryMeta));
   if(budgetLimitsRef && newLimits) tasks.push(budgetLimitsRef.set(budgetLimits));
+  if(recurringTemplatesRef) tasks.push(recurringTemplatesRef.set(recurringTemplates));
   tasks.push(persist());
   try{ await Promise.all(tasks); }
   catch(e){ console.error('Rename sync failed:', e); }
@@ -955,7 +1167,9 @@ function render(){
                                .sort((a,b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
 
   const income = monthEntries.filter(e => e.type === 'income').reduce((s,e)=>s+e.amount,0);
-  const expense = monthEntries.filter(e => e.type === 'expense').reduce((s,e)=>s+e.amount,0);
+  const variableExpense = monthEntries.filter(e => e.type === 'expense' && !isFixedCategory(e.category)).reduce((s,e)=>s+e.amount,0);
+  const fixedExpense = monthEntries.filter(e => e.type === 'expense' && isFixedCategory(e.category)).reduce((s,e)=>s+e.amount,0);
+  const expense = variableExpense;
   const net = income - expense;
 
   document.getElementById('netAmt').textContent = fmt(net);
@@ -970,7 +1184,7 @@ function render(){
   document.getElementById('summaryBarLabel').textContent = spendPct + '% da renda gasta este mês';
 
   const catTotals = {};
-  monthEntries.filter(e=>e.type==='expense').forEach(e=>{
+  monthEntries.filter(e => e.type === 'expense' && !isFixedCategory(e.category)).forEach(e=>{
     catTotals[e.category] = (catTotals[e.category]||0) + e.amount;
   });
   const catEntries = Object.entries(catTotals).sort((a,b)=>b[1]-a[1]);
@@ -1015,6 +1229,30 @@ function render(){
     el.addEventListener('click', () => startEditLimit(el));
   });
 
+  document.getElementById('fixedTotalAmt').textContent = fmt(fixedExpense);
+
+  const fixedCatTotals = {};
+  monthEntries.filter(e => e.type === 'expense' && isFixedCategory(e.category)).forEach(e=>{
+    fixedCatTotals[e.category] = (fixedCatTotals[e.category]||0) + e.amount;
+  });
+  const fixedCatEntries = Object.entries(fixedCatTotals).sort((a,b)=>b[1]-a[1]);
+  const fixedCatTitle = document.getElementById('fixedCatTitle');
+  const fixedCatBarsEl = document.getElementById('fixedCatBars');
+  fixedCatBarsEl.innerHTML = "";
+  if(fixedCatEntries.length){
+    fixedCatTitle.style.display = "block";
+    const fmax = fixedCatEntries[0][1];
+    fixedCatEntries.forEach(([cat,amt])=>{
+      const row = document.createElement('div');
+      row.className = 'cat-bar-row';
+      const pct = fixedExpense > 0 ? Math.round((amt/fixedExpense)*100) : 0;
+      row.innerHTML = `<div class="cat-bar-name">${cat}</div><div class="cat-bar-track"><div class="cat-bar-fill" style="width:${(amt/fmax*100).toFixed(0)}%; background:${categoryColor(cat)}"></div></div><div class="cat-bar-amt">${fmt(amt)} <span class="cat-bar-pct">${pct}%</span></div>`;
+      fixedCatBarsEl.appendChild(row);
+    });
+  } else {
+    fixedCatTitle.style.display = "none";
+  }
+
   const listEl = document.getElementById('ledgerList');
   listEl.innerHTML = "";
   if(monthEntries.length === 0){
@@ -1027,10 +1265,11 @@ function render(){
     row.style.cursor = 'pointer';
     const dateLabel = new Date(e.date + 'T00:00:00').toLocaleDateString('pt-BR',{month:'short', day:'numeric'});
     const installmentTag = e.installmentTotal ? ` · (${e.installmentIndex}/${e.installmentTotal})` : '';
+    const recurringTag = e.recurringId ? ` · 🔁` : '';
     row.innerHTML = `
       <div class="mid">
         <div class="cat">${e.category}</div>
-        <div class="meta">${dateLabel}${e.note ? ' · ' + e.note : ''}${installmentTag}</div>
+        <div class="meta">${dateLabel}${e.note ? ' · ' + e.note : ''}${installmentTag}${recurringTag}</div>
       </div>
       <div class="amt ${e.type}">${e.type === 'expense' ? '-' : '+'}${fmt(e.amount)}</div>
       <button class="del" data-id="${e.id}" aria-label="Excluir">×</button>
@@ -1111,10 +1350,42 @@ document.getElementById('backupBtn').onclick = () => {
   URL.revokeObjectURL(url);
 };
 
+function csvEscape(field){
+  const s = String(field == null ? '' : field);
+  if(/[;"\n]/.test(s)){
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+document.getElementById('csvBtn').onclick = () => {
+  const rows = [['Data','Tipo','Seção','Categoria','Valor (R$)','Observação']];
+  const sorted = [...entries].sort((a,b) => (a.date||'').localeCompare(b.date||'') || (a.createdAt||0) - (b.createdAt||0));
+  sorted.forEach(e => {
+    const parts = (e.date || '').split('-');
+    const dataFmt = parts.length === 3 ? (parts[2] + '/' + parts[1] + '/' + parts[0]) : (e.date || '');
+    const tipo = e.type === 'income' ? 'Receita' : 'Despesa';
+    const secao = e.type === 'income' ? '' : (isFixedCategory(e.category) ? 'Fixo' : 'Variável');
+    const valor = (e.amount || 0).toFixed(2).replace('.', ',');
+    rows.push([dataFmt, tipo, secao, e.category || '', valor, e.note || '']);
+  });
+  const csv = rows.map(r => r.map(csvEscape).join(';')).join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'xyko-planilha-' + localISODate() + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
 populateCategories();
 load();
 loadCategories();
 loadBudgetLimits();
+loadRecurringTemplates();
 </script>
 
 
