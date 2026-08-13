@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#192746">
+  <meta name="description" content="Rodrigo's job-search tracker for agencies, creatives, recruiters and applications.">
+  <title>The Job Search</title>
+</head>
+<body style="margin:0;background:#eee8da;">
+<div id="jt-root">
+  <style>
+    #jt-root {
+      --paper: #eee8da;
+      --paper-deep: #e2dac7;
+      --card: #fbf8f1;
+      --ink: #192746;
+      --ink-soft: #667089;
+      --red: #b53d31;
+      --green: #2e6b57;
+      --gold: #9a6b22;
+      --line: #c9bfa7;
+      --shadow: 0 10px 30px rgba(25, 39, 70, .08);
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Courier New", ui-monospace, Menlo, monospace;
+      min-height: 720px;
+      padding: 18px;
+      box-sizing: border-box;
+    }
+    #jt-root *, #jt-root *::before, #jt-root *::after { box-sizing: border-box; }
+    #jt-root button, #jt-root input, #jt-root select, #jt-root textarea { font: inherit; }
+    #jt-root button { color: inherit; }
+    .jt-shell { max-width: 1420px; margin: 0 auto; }
+    .jt-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 16px; }
+    .jt-eyebrow { color: var(--red); font-size: 10px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; margin-bottom: 4px; }
+    .jt-title { font-family: Georgia, serif; font-size: clamp(24px, 3vw, 38px); line-height: 1; margin: 0; letter-spacing: -.4px; }
+    .jt-subtitle { color: var(--ink-soft); font-size: 11px; margin: 7px 0 0; }
+    .jt-top-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .jt-btn { appearance: none; border: 1.5px solid var(--ink); background: var(--card); border-radius: 3px; padding: 8px 12px; font-size: 11px; font-weight: 700; cursor: pointer; transition: transform .12s ease, background .12s ease, color .12s ease; }
+    .jt-btn:hover { transform: translateY(-1px); }
+    .jt-btn.primary { background: var(--ink); color: var(--card); }
+    .jt-btn.ghost { background: transparent; border-style: dashed; color: var(--ink-soft); }
+    .jt-btn.danger { color: var(--red); border-color: var(--red); background: transparent; }
+    .jt-btn.small { padding: 5px 8px; font-size: 9.5px; }
+    .jt-nav { display: flex; gap: 5px; overflow-x: auto; padding: 6px; border: 1.5px solid var(--ink); background: var(--card); border-radius: 4px; margin-bottom: 14px; scrollbar-width: thin; }
+    .jt-nav button { flex: 0 0 auto; border: 0; border-radius: 2px; padding: 9px 12px; background: transparent; color: var(--ink-soft); cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: .25px; }
+    .jt-nav button.active { background: var(--ink); color: var(--card); }
+    .jt-view-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 18px 0 12px; }
+    .jt-view-title { font-family: Georgia, serif; font-size: 22px; margin: 0; }
+    .jt-view-copy { color: var(--ink-soft); font-size: 10.5px; margin: 4px 0 0; max-width: 680px; }
+    .jt-view-actions { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+    .jt-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+    .jt-metric { background: var(--card); border: 1.5px solid var(--ink); border-radius: 3px; padding: 14px; min-height: 105px; box-shadow: var(--shadow); }
+    .jt-metric-label { color: var(--ink-soft); font-size: 9px; letter-spacing: .8px; text-transform: uppercase; }
+    .jt-metric-value { font-family: Georgia, serif; font-size: 32px; line-height: 1; margin-top: 10px; }
+    .jt-metric-note { color: var(--ink-soft); font-size: 9.5px; margin-top: 8px; }
+    .jt-grid-2 { display: grid; grid-template-columns: 1.15fr .85fr; gap: 12px; margin-top: 12px; }
+    .jt-panel { background: var(--card); border: 1.5px solid var(--ink); border-radius: 3px; overflow: hidden; box-shadow: var(--shadow); }
+    .jt-panel-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+    .jt-panel-title { font-family: Georgia, serif; font-size: 15px; font-weight: 700; }
+    .jt-panel-body { padding: 12px 14px; }
+    .jt-empty { color: var(--ink-soft); font-size: 11px; padding: 20px 4px; text-align: center; }
+    .jt-list { display: grid; gap: 0; }
+    .jt-list-item { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--line); }
+    .jt-list-item:last-child { border-bottom: 0; }
+    .jt-item-name { font-family: Georgia, serif; font-weight: 700; font-size: 13px; }
+    .jt-item-meta { color: var(--ink-soft); font-size: 9.5px; margin-top: 3px; line-height: 1.4; }
+    .jt-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(130px, 180px)); gap: 8px; padding: 10px; background: var(--paper-deep); border: 1.5px solid var(--ink); border-bottom: 0; border-radius: 3px 3px 0 0; }
+    .jt-input, .jt-select, .jt-textarea { width: 100%; border: 1.5px solid var(--ink); border-radius: 2px; background: var(--card); color: var(--ink); padding: 8px 9px; font-size: 10.5px; outline: none; }
+    .jt-input:focus, .jt-select:focus, .jt-textarea:focus { box-shadow: 0 0 0 2px rgba(181, 61, 49, .18); }
+    .jt-table-wrap { overflow-x: auto; border: 1.5px solid var(--ink); background: var(--card); border-radius: 0 0 3px 3px; box-shadow: var(--shadow); }
+    .jt-table { width: 100%; border-collapse: collapse; min-width: 860px; }
+    .jt-table th { text-align: left; font-size: 8.5px; text-transform: uppercase; letter-spacing: .8px; color: var(--ink-soft); padding: 9px 10px; border-bottom: 1px solid var(--line); background: rgba(226, 218, 199, .45); }
+    .jt-table td { padding: 11px 10px; border-bottom: 1px dashed var(--line); font-size: 10px; vertical-align: top; }
+    .jt-table tr:last-child td { border-bottom: 0; }
+    .jt-table tr:hover td { background: rgba(238, 232, 218, .45); }
+    .jt-cell-main { font-family: Georgia, serif; font-weight: 700; font-size: 12px; }
+    .jt-cell-sub { color: var(--ink-soft); font-size: 9px; margin-top: 3px; line-height: 1.35; max-width: 320px; }
+    .jt-actions { display: flex; gap: 5px; white-space: nowrap; }
+    .jt-link { color: var(--red); text-decoration: none; font-weight: 700; }
+    .jt-link:hover { text-decoration: underline; }
+    .jt-badge { display: inline-flex; align-items: center; border: 1px solid currentColor; border-radius: 999px; padding: 3px 6px; font-size: 8px; font-weight: 700; line-height: 1; white-space: nowrap; }
+    .jt-badge.high, .jt-badge.dream, .jt-badge.interview { color: var(--red); }
+    .jt-badge.medium, .jt-badge.applied { color: var(--gold); }
+    .jt-badge.low, .jt-badge.connected, .jt-badge.offer { color: var(--green); }
+    .jt-badge.archived, .jt-badge.not-contacted { color: var(--ink-soft); }
+    .jt-note { border-left: 4px solid var(--red); background: rgba(181, 61, 49, .07); padding: 10px 12px; font-size: 10px; line-height: 1.5; margin-bottom: 12px; }
+    .jt-import-zone { border: 1.5px dashed var(--ink); background: rgba(251, 248, 241, .55); padding: 18px; text-align: center; margin-bottom: 12px; border-radius: 3px; }
+    .jt-import-zone strong { display: block; font-family: Georgia, serif; font-size: 16px; margin-bottom: 4px; }
+    .jt-import-zone span { color: var(--ink-soft); font-size: 10px; }
+    .jt-toast { position: fixed; right: 22px; bottom: 22px; z-index: 50; max-width: 340px; background: var(--ink); color: var(--card); padding: 10px 13px; border-radius: 3px; font-size: 10px; box-shadow: var(--shadow); opacity: 0; transform: translateY(8px); pointer-events: none; transition: .2s ease; }
+    .jt-toast.show { opacity: 1; transform: translateY(0); }
+    .jt-modal-backdrop { position: fixed; inset: 0; z-index: 40; display: none; place-items: center; padding: 18px; background: rgba(25, 39, 70, .55); }
+    .jt-modal-backdrop.open { display: grid; }
+    .jt-modal { width: min(680px, 100%); max-height: 90vh; overflow-y: auto; background: var(--paper); border: 2px solid var(--ink); border-radius: 4px; box-shadow: 0 30px 80px rgba(0,0,0,.28); }
+    .jt-modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1.5px solid var(--ink); background: var(--card); }
+    .jt-modal-title { font-family: Georgia, serif; font-size: 18px; font-weight: 700; }
+    .jt-modal-close { border: 0; background: transparent; font-size: 18px; cursor: pointer; }
+    .jt-form { padding: 16px; }
+    .jt-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .jt-field.full { grid-column: 1 / -1; }
+    .jt-label { display: block; font-size: 8.5px; font-weight: 700; letter-spacing: .7px; text-transform: uppercase; margin-bottom: 5px; color: var(--ink-soft); }
+    .jt-textarea { min-height: 82px; resize: vertical; }
+    .jt-form-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 15px; }
+    @media (max-width: 900px) { .jt-metrics { grid-template-columns: repeat(2, 1fr); } .jt-grid-2 { grid-template-columns: 1fr; } .jt-toolbar { grid-template-columns: 1fr 1fr; } .jt-toolbar .jt-search { grid-column: 1 / -1; } }
+    @media (max-width: 620px) { #jt-root { padding: 12px; } .jt-topbar, .jt-view-head { align-items: stretch; flex-direction: column; } .jt-top-actions, .jt-view-actions { justify-content: flex-start; } .jt-metrics { grid-template-columns: 1fr 1fr; } .jt-form-grid, .jt-toolbar { grid-template-columns: 1fr; } .jt-toolbar .jt-search { grid-column: auto; } }
+  </style>
+
+  <div class="jt-shell">
+    <header class="jt-topbar">
+      <div><div class="jt-eyebrow">Rodrigo's opportunity desk</div><h1 class="jt-title">The Job Search</h1><p class="jt-subtitle">People, targets, conversations and opportunities in one place.</p></div>
+      <div class="jt-top-actions"><button class="jt-btn ghost" data-action="import-csv">Import LinkedIn CSV</button><button class="jt-btn primary" data-action="quick-add">+ Add person</button></div>
+    </header>
+    <nav class="jt-nav" id="jtNav" aria-label="Tracker sections"></nav>
+    <main id="jtMain"></main>
+  </div>
+  <input id="jtCsvInput" type="file" accept=".csv,text/csv" hidden />
+  <div class="jt-toast" id="jtToast" role="status"></div>
+  <div class="jt-modal-backdrop" id="jtModalBackdrop" aria-hidden="true"><div class="jt-modal" role="dialog" aria-modal="true" aria-labelledby="jtModalTitle"><div class="jt-modal-head"><div class="jt-modal-title" id="jtModalTitle"></div><button class="jt-modal-close" data-action="close-modal" aria-label="Close">×</button></div><div id="jtModalBody"></div></div></div>
+
+  <script>
+  (function () {
+    const root = document.getElementById('jt-root');
+    const main = root.querySelector('#jtMain');
+    const nav = root.querySelector('#jtNav');
+    const modalBackdrop = root.querySelector('#jtModalBackdrop');
+    const modalTitle = root.querySelector('#jtModalTitle');
+    const modalBody = root.querySelector('#jtModalBody');
+    const csvInput = root.querySelector('#jtCsvInput');
+    const toastEl = root.querySelector('#jtToast');
+    const STORAGE_KEY = 'rr-job-search-tracker-v1';
+    const OLD_KEY = 'rr-agency-roster-v3';
+    let activeView = 'dashboard';
+    let state;
+    let toastTimer;
+
+    const agencySeed = {
+      "McCann New York": { people: [["Tom Murphy", "Co-Chief Creative Officer", ""], ["Sean Bryan", "Co-Chief Creative Officer", ""], ["Danilo Boer", "Global Creative Lead & Partner", "arrived 2026, ex-FCB Global CCO"], ["Maru Kopelowicz", "Executive Creative Director", "ex-Ogilvy & Mather"], ["Jeff Anderson", "Executive Creative Director", "ex-Chi & Partners NY"], ["Cam Hoelter", "Executive Creative Director", "ex-DDB New York"], ["Holly Hessler", "Group Creative Director", "ex-TBWA Media Arts Lab"]] },
+      "BBDO New York": { people: [["Scott Bell", "Chief Creative Officer", "joined 2025, ex-Droga5 CCO"], ["Michael Aimette", "Creative leadership, title unconfirmed", "ex-FCB NY CCO, exact title needs verification"], ["Ricardo Franco", "Executive Creative Director, AB InBev", "joined Mar 2026, leads Budweiser & Michelob ULTRA"], ["Chris Beresford-Hill", "Worldwide Chief Creative Officer, BBDO", "based in NY, network-wide role"]] },
+      "Ogilvy New York": { people: [["Darla Price", "President, Ogilvy New York", ""], ["Liz Taylor", "Global Chief Creative Officer", "based in NY"], ["Kasia Canning", "Executive Creative Director", "joined 2024, ex-Maximum Effort"], ["Cha Spruce", "Executive Creative Director, PR/Social/Influence", "joined 2024, ex-W+K BODEGA"]] },
+      "Grey New York": { people: [["Agnes Fischer", "US CEO", ""], ["Samira Ansari", "US Chief Creative Officer", "joined Dec 2025 from Ogilvy New York"], ["Gabriel Schmitt", "Global Chief Creative Officer, Grey", ""]] },
+      "Droga5": { people: [["Rafael Rizuto", "Chief Creative Officer, New York & Americas", "started Jan 2026, ex-Ogilvy"], ["Cristina Reina", "Chief Creative Experience Officer", "started Jan 2026, ex-Leo US"], ["Mark Green", "Global CEO, Droga5", "part of Accenture Song"]] },
+      "Mischief": { people: [["Greg Hahn", "Co-Founder & Chief Creative Officer", "ex-BBDO New York CCO"], ["Bianca Guimaraes", "Founding Partner & Executive Creative Director", "ex-BBDO New York"], ["Kevin Mulroy", "Executive Creative Director", ""], ["Kerry McKibbin", "President", ""], ["Jeff McCrory", "Chief Strategy Officer, Partner", ""]] },
+      "TBWA\\Chiat\\Day New York": { people: [] }, "Wieden+Kennedy New York": { people: [] }, "VaynerMedia": { people: [] }, "Deutsch New York": { people: [] }, "Publicis New York": { people: [] }, "Havas New York": { people: [] }, "72andSunny New York": { people: [] }, "Big Spaceship": { people: [] }, "VML New York": { people: [] }, "Saatchi & Saatchi New York": { people: [] }, "Dentsu Creative New York": { people: [] },
+      "Anomaly": { people: [["Jeff Stamp", "Managing Partner & Chief Creative Officer, NY", "joined 2024"], ["Mike Byrne", "Founding Partner & Global Chief Creative Officer", ""], ["Franke Rodriguez", "Partner & CEO, New York and Toronto", ""]] },
+      "Mother New York": { people: [["Oriel Davis-Lyons", "Chief Creative Officer, Mother New York", ""], ["Teri Miller", "Partner & CEO, USA / Global Chief Client Officer", ""], ["Felix Richter", "Global Chief Creative Officer", "based London"]] },
+      "Johannes Leonardo": { people: [["Jonathan Santana", "Chief Creative Officer", "promoted 2024"], ["Jan Jacobs", "Co-Founder & Creative Chairman", ""], ["Leo Premutico", "Co-Founder & Creative Chairman", ""], ["Helen Andrews", "CEO", ""], ["Lex Beltrone", "Executive Creative Director", "ex-FCB"]] },
+      "R/GA": { people: [["Tiffany Rolfe", "Chair & Global Chief Creative Officer", "based NY"], ["Robin Forbes", "Global CEO", ""], ["Bob Greenberg", "Founder & Executive Chairman", ""], ["Ren Rigby", "Global Chief Brand Officer", "joined 2025"]], note: "Independent from IPG since March 2025. This note needs current verification." },
+      "GUT": { people: [["Andrea Diquez", "Global CEO", ""], ["Joaquin 'Joaco' Cubria", "Global Chief Creative Officer", "promoted 2026"], ["Ignacio 'Nacho' Ferioli", "Global Chief Creative Officer", "promoted 2026"]], note: "New York leadership needs more research." }
+    };
+    const NAV_ITEMS = [['dashboard','Dashboard'],['agencies','Agencies'],['creatives','Creatives'],['company-recruiters','Company recruiters'],['independent-recruiters','Independent recruiters'],['network','Network inbox'],['inhouse','In-house targets'],['applications','Applications']];
+    const id = prefix => prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+    const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const normal = value => String(value || '').trim().toLowerCase();
+    const today = () => new Date().toISOString().slice(0, 10);
+    const displayDate = value => value ? new Date(value + 'T12:00:00').toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'}) : 'Not set';
+    const safeUrl = value => /^https?:\/\//i.test(String(value || '').trim()) ? String(value).trim() : '';
+
+    async function storageGet(key) { try { if (window.storage && window.storage.get) { const result = await window.storage.get(key, false); return result && result.value ? result.value : null; } } catch (e) {} try { return localStorage.getItem(key); } catch (e) { return null; } }
+    async function storageSet(key, value) { try { if (window.storage && window.storage.set) { await window.storage.set(key, value, false); return; } } catch (e) {} try { localStorage.setItem(key, value); } catch (e) {} }
+    function buildSeed() {
+      const agencies = [], people = [];
+      Object.keys(agencySeed).forEach((name, index) => {
+        const entry = agencySeed[name];
+        agencies.push({ id:'agency-' + index, name, priority:index < 6 ? 'High' : 'Medium', status:'Researching', website:'', notes:entry.note || '' });
+        entry.people.forEach((person, personIndex) => people.push({ id:'person-' + index + '-' + personIndex, name:person[0], title:person[1], company:name, category:'creative', priority:index < 6 ? 'High' : 'Medium', relationship:'Not contacted', linkedin:'', lastContact:'', nextFollowUp:'', notes:person[2] || '', connectedOn:'' }));
+      });
+      return { agencies, people, targets:[], applications:[], activities:[{id:id('activity'), text:'Tracker foundation created', date:today()}], version:1 };
+    }
+    function migrateOld(oldState) {
+      const fresh = buildSeed();
+      if (!oldState || typeof oldState !== 'object') return fresh;
+      const agencies = [], people = [];
+      Object.keys(oldState).forEach((name, index) => { const entry = oldState[name] || {}; agencies.push({id:'agency-m-'+index,name,priority:'Medium',status:'Researching',website:'',notes:entry.note2||''}); (entry.people||[]).forEach((person, personIndex) => people.push({id:'person-m-'+index+'-'+personIndex,name:person.name||'',title:person.title||'',company:name,category:'creative',priority:'Medium',relationship:'Not contacted',linkedin:'',lastContact:'',nextFollowUp:'',notes:person.note||'',connectedOn:''})); });
+      return { agencies, people, targets:[], applications:[], activities:[{id:id('activity'),text:'Previous agency roster migrated',date:today()}], version:1 };
+    }
+    async function load() {
+      const saved = await storageGet(STORAGE_KEY);
+      if (saved) { try { state = JSON.parse(saved); } catch (e) { state = buildSeed(); } }
+      else { const oldSaved = await storageGet(OLD_KEY); if (oldSaved) { try { state = migrateOld(JSON.parse(oldSaved)); } catch (e) { state = buildSeed(); } } else state = buildSeed(); await save(); }
+      state.agencies = Array.isArray(state.agencies) ? state.agencies : []; state.people = Array.isArray(state.people) ? state.people : []; state.targets = Array.isArray(state.targets) ? state.targets : []; state.applications = Array.isArray(state.applications) ? state.applications : []; state.activities = Array.isArray(state.activities) ? state.activities : [];
+      render();
+    }
+    async function save() { await storageSet(STORAGE_KEY, JSON.stringify(state)); }
+    function addActivity(text) { state.activities.unshift({id:id('activity'),text,date:today()}); state.activities = state.activities.slice(0,30); }
+    function showToast(message) { toastEl.textContent = message; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('show'),2600); }
+    function renderNav() { nav.innerHTML = NAV_ITEMS.map(item => `<button class="${activeView === item[0] ? 'active' : ''}" data-view="${item[0]}">${item[1]}</button>`).join(''); }
+    function render() { renderNav(); if (activeView === 'dashboard') renderDashboard(); else if (activeView === 'agencies') renderAgencies(); else if (activeView === 'creatives') renderPeople('creative','Creatives','Creative leaders, hiring managers and peers worth knowing.'); else if (activeView === 'company-recruiters') renderPeople('company-recruiter','Company recruiters','Recruiters employed by an agency, brand or production company.'); else if (activeView === 'independent-recruiters') renderPeople('independent-recruiter','Independent recruiters','Freelancers, headhunters and recruiting firms.'); else if (activeView === 'network') renderNetwork(); else if (activeView === 'inhouse') renderTargets(); else if (activeView === 'applications') renderApplications(); }
+    function viewHead(title, copy, actions) { return `<div class="jt-view-head"><div><h2 class="jt-view-title">${esc(title)}</h2><p class="jt-view-copy">${esc(copy)}</p></div><div class="jt-view-actions">${actions || ''}</div></div>`; }
+    function badge(value) { return `<span class="jt-badge ${normal(value).replace(/\s+/g,'-')}">${esc(value || 'Not set')}</span>`; }
+
+    function renderDashboard() {
+      const warm = state.people.filter(p => ['Connected','Replied','Meeting booked'].includes(p.relationship)).length;
+      const followups = state.people.filter(p => p.nextFollowUp && p.nextFollowUp <= today()).sort((a,b) => a.nextFollowUp.localeCompare(b.nextFollowUp));
+      const activeApps = state.applications.filter(a => !['Rejected','Withdrawn','Offer'].includes(a.status)).length;
+      const priorityAgencies = state.agencies.filter(a => a.priority === 'High' || a.priority === 'Dream').length;
+      const activities = state.activities.slice(0,6);
+      main.innerHTML = viewHead('Dashboard','A practical view of the people and opportunities that need attention.',`<button class="jt-btn" data-action="add-application">+ Application</button><button class="jt-btn primary" data-action="quick-add">+ Person</button>`) + `<div class="jt-metrics"><div class="jt-metric"><div class="jt-metric-label">People tracked</div><div class="jt-metric-value">${state.people.length}</div><div class="jt-metric-note">${warm} active relationships</div></div><div class="jt-metric"><div class="jt-metric-label">Priority agencies</div><div class="jt-metric-value">${priorityAgencies}</div><div class="jt-metric-note">High or dream targets</div></div><div class="jt-metric"><div class="jt-metric-label">Follow-ups due</div><div class="jt-metric-value">${followups.length}</div><div class="jt-metric-note">Today or overdue</div></div><div class="jt-metric"><div class="jt-metric-label">Active applications</div><div class="jt-metric-value">${activeApps}</div><div class="jt-metric-note">${state.applications.length} total applications</div></div></div><div class="jt-grid-2"><section class="jt-panel"><div class="jt-panel-head"><div class="jt-panel-title">Next actions</div><button class="jt-btn small" data-view="network">View network</button></div><div class="jt-panel-body">${followups.length ? `<div class="jt-list">${followups.slice(0,7).map(p => `<div class="jt-list-item"><div><div class="jt-item-name">${esc(p.name)}</div><div class="jt-item-meta">${esc(p.company)} · Follow up ${displayDate(p.nextFollowUp)}</div></div>${badge(p.priority)}</div>`).join('')}</div>` : `<div class="jt-empty">No follow-ups are due. Add a next date to the people you want to contact.</div>`}</div></section><section class="jt-panel"><div class="jt-panel-head"><div class="jt-panel-title">Recent activity</div></div><div class="jt-panel-body">${activities.length ? `<div class="jt-list">${activities.map(a => `<div class="jt-list-item"><div><div class="jt-item-name">${esc(a.text)}</div><div class="jt-item-meta">${displayDate(a.date)}</div></div></div>`).join('')}</div>` : `<div class="jt-empty">Activity will appear here.</div>`}</div></section></div>`;
+    }
+    function toolbar(first, second) { return `<div class="jt-toolbar"><input class="jt-input jt-search" id="jtSearch" type="search" placeholder="Search names, companies, titles or notes" /><select class="jt-select" id="jtFilterOne"><option value="">${esc(first.label)}</option>${first.options.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select><select class="jt-select" id="jtFilterTwo"><option value="">${esc(second.label)}</option>${second.options.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select></div>`; }
+    function bindFilters(renderRows) { ['jtSearch','jtFilterOne','jtFilterTwo'].forEach(idName => { const el = root.querySelector('#'+idName); if (el) el.addEventListener('input',renderRows); }); renderRows(); }
+    function renderAgencies() {
+      main.innerHTML = viewHead('Agencies','Target agencies, current leadership and research status.',`<button class="jt-btn primary" data-action="add-agency">+ Add agency</button>`) + toolbar({label:'All priorities',options:['Dream','High','Medium','Low']},{label:'All statuses',options:['Researching','Ready to contact','Contacted','Meeting','Archived']}) + `<div class="jt-table-wrap"><table class="jt-table"><thead><tr><th>Agency</th><th>Priority</th><th>Status</th><th>People</th><th>Notes</th><th></th></tr></thead><tbody id="jtRows"></tbody></table></div>`;
+      bindFilters(() => { const q=normal(root.querySelector('#jtSearch').value), priority=root.querySelector('#jtFilterOne').value, status=root.querySelector('#jtFilterTwo').value; const rows=state.agencies.filter(a=>(!q||normal([a.name,a.notes].join(' ')).includes(q))&&(!priority||a.priority===priority)&&(!status||a.status===status)); root.querySelector('#jtRows').innerHTML = rows.length ? rows.map(a=>{ const count=state.people.filter(p=>normal(p.company)===normal(a.name)).length; return `<tr><td><div class="jt-cell-main">${esc(a.name)}</div>${a.website?`<div class="jt-cell-sub"><a class="jt-link" href="${esc(safeUrl(a.website))}" target="_blank" rel="noopener">Website</a></div>`:''}</td><td>${badge(a.priority)}</td><td>${badge(a.status)}</td><td>${count}</td><td><div class="jt-cell-sub">${esc(a.notes||'No notes yet')}</div></td><td><div class="jt-actions"><button class="jt-btn small" data-action="view-agency-people" data-id="${a.id}">People</button><button class="jt-btn small" data-action="edit-agency" data-id="${a.id}">Edit</button></div></td></tr>`;}).join('') : `<tr><td colspan="6"><div class="jt-empty">No agencies match these filters.</div></td></tr>`; });
+    }
+    function peopleTableRows(items) { return items.length ? items.map(p=>`<tr><td><div class="jt-cell-main">${esc(p.name)}</div><div class="jt-cell-sub">${esc(p.title||'Title not added')}</div></td><td><div>${esc(p.company||'Company not added')}</div>${p.linkedin?`<div class="jt-cell-sub"><a class="jt-link" href="${esc(safeUrl(p.linkedin))}" target="_blank" rel="noopener">LinkedIn</a></div>`:''}</td><td>${badge(p.priority)}</td><td>${badge(p.relationship)}</td><td><div>${p.nextFollowUp?displayDate(p.nextFollowUp):'Not set'}</div><div class="jt-cell-sub">${esc(p.notes||'')}</div></td><td><div class="jt-actions"><button class="jt-btn small" data-action="edit-person" data-id="${p.id}">Edit</button><button class="jt-btn small danger" data-action="delete-person" data-id="${p.id}">Delete</button></div></td></tr>`).join('') : `<tr><td colspan="6"><div class="jt-empty">No people match these filters.</div></td></tr>`; }
+    function renderPeople(category,title,copy,presetCompany) {
+      main.innerHTML = viewHead(title,copy,`<button class="jt-btn primary" data-action="add-person" data-category="${category}">+ Add person</button>`) + toolbar({label:'All priorities',options:['High','Medium','Low']},{label:'All relationships',options:['Not contacted','Connected','Contacted','Replied','Meeting booked']}) + `<div class="jt-table-wrap"><table class="jt-table"><thead><tr><th>Person</th><th>Company</th><th>Priority</th><th>Relationship</th><th>Next action</th><th></th></tr></thead><tbody id="jtRows"></tbody></table></div>`;
+      if (presetCompany) root.querySelector('#jtSearch').value = presetCompany;
+      bindFilters(()=>{ const q=normal(root.querySelector('#jtSearch').value),priority=root.querySelector('#jtFilterOne').value,relationship=root.querySelector('#jtFilterTwo').value; const items=state.people.filter(p=>p.category===category&&(!q||normal([p.name,p.title,p.company,p.notes].join(' ')).includes(q))&&(!priority||p.priority===priority)&&(!relationship||p.relationship===relationship)); root.querySelector('#jtRows').innerHTML=peopleTableRows(items); });
+    }
+    function categoryName(category) { return ({'creative':'Creative','company-recruiter':'Company recruiter','independent-recruiter':'Independent recruiter','unclassified':'Unclassified'})[category]||'Unclassified'; }
+    function renderNetwork() {
+      const count=state.people.filter(p=>p.category==='unclassified').length;
+      main.innerHTML=viewHead('Network inbox','Imported LinkedIn connections land here until they are classified and prioritized.',`<button class="jt-btn primary" data-action="import-csv">Import LinkedIn CSV</button>`) + `<div class="jt-import-zone"><strong>${count} connections waiting for review</strong><span>Import LinkedIn's Connections.csv. Existing people are automatically skipped.</span></div>` + toolbar({label:'All categories',options:['Unclassified','Creative','Company recruiter','Independent recruiter']},{label:'All priorities',options:['High','Medium','Low']}) + `<div class="jt-table-wrap"><table class="jt-table"><thead><tr><th>Person</th><th>Company</th><th>Category</th><th>Connected</th><th>Priority</th><th></th></tr></thead><tbody id="jtRows"></tbody></table></div>`;
+      bindFilters(()=>{ const q=normal(root.querySelector('#jtSearch').value),label=root.querySelector('#jtFilterOne').value,map={'Unclassified':'unclassified','Creative':'creative','Company recruiter':'company-recruiter','Independent recruiter':'independent-recruiter'},category=map[label]||'',priority=root.querySelector('#jtFilterTwo').value; const items=state.people.filter(p=>(!q||normal([p.name,p.title,p.company,p.notes].join(' ')).includes(q))&&(!category||p.category===category)&&(!priority||p.priority===priority)); root.querySelector('#jtRows').innerHTML=items.length?items.map(p=>`<tr><td><div class="jt-cell-main">${esc(p.name)}</div><div class="jt-cell-sub">${esc(p.title||'Title not added')}</div></td><td>${esc(p.company||'Not listed')}</td><td>${esc(categoryName(p.category))}</td><td>${esc(p.connectedOn||'Not listed')}</td><td>${badge(p.priority)}</td><td><div class="jt-actions"><button class="jt-btn small" data-action="edit-person" data-id="${p.id}">Classify / Edit</button><button class="jt-btn small danger" data-action="delete-person" data-id="${p.id}">Delete</button></div></td></tr>`).join(''):`<tr><td colspan="6"><div class="jt-empty">No connections match these filters.</div></td></tr>`; });
+    }
+    function renderTargets() {
+      main.innerHTML=viewHead('In-house targets','Brands and companies where your creative leadership background could translate well.',`<button class="jt-btn primary" data-action="add-target">+ Add target</button>`) + toolbar({label:'All priorities',options:['Dream','High','Medium','Low']},{label:'All statuses',options:['Researching','Watching','Opening found','Contacted','Archived']}) + `<div class="jt-table-wrap"><table class="jt-table"><thead><tr><th>Company</th><th>Category</th><th>Priority</th><th>Status</th><th>Key contact</th><th></th></tr></thead><tbody id="jtRows"></tbody></table></div>`;
+      bindFilters(()=>{ const q=normal(root.querySelector('#jtSearch').value),priority=root.querySelector('#jtFilterOne').value,status=root.querySelector('#jtFilterTwo').value,items=state.targets.filter(t=>(!q||normal([t.company,t.category,t.contact,t.notes].join(' ')).includes(q))&&(!priority||t.priority===priority)&&(!status||t.status===status)); root.querySelector('#jtRows').innerHTML=items.length?items.map(t=>`<tr><td><div class="jt-cell-main">${esc(t.company)}</div><div class="jt-cell-sub">${esc(t.notes||'')}</div></td><td>${esc(t.category||'Not set')}</td><td>${badge(t.priority)}</td><td>${badge(t.status)}</td><td>${esc(t.contact||'Not identified')}</td><td><div class="jt-actions"><button class="jt-btn small" data-action="edit-target" data-id="${t.id}">Edit</button><button class="jt-btn small danger" data-action="delete-target" data-id="${t.id}">Delete</button></div></td></tr>`).join(''):`<tr><td colspan="6"><div class="jt-empty">No in-house targets yet. Add the brands you would genuinely want to join.</div></td></tr>`; });
+    }
+    function renderApplications() {
+      main.innerHTML=viewHead('Applications','Roles, introductions and interviews with a clear next action.',`<button class="jt-btn primary" data-action="add-application">+ Add application</button>`) + toolbar({label:'All priorities',options:['High','Medium','Low']},{label:'All statuses',options:['Interested','Applied','Recruiter screen','Interview','Final round','Offer','Rejected','Withdrawn']}) + `<div class="jt-table-wrap"><table class="jt-table"><thead><tr><th>Role</th><th>Company</th><th>Status</th><th>Applied</th><th>Next action</th><th></th></tr></thead><tbody id="jtRows"></tbody></table></div>`;
+      bindFilters(()=>{ const q=normal(root.querySelector('#jtSearch').value),priority=root.querySelector('#jtFilterOne').value,status=root.querySelector('#jtFilterTwo').value,items=state.applications.filter(a=>(!q||normal([a.role,a.company,a.contact,a.notes,a.nextAction].join(' ')).includes(q))&&(!priority||a.priority===priority)&&(!status||a.status===status)); root.querySelector('#jtRows').innerHTML=items.length?items.map(a=>`<tr><td><div class="jt-cell-main">${esc(a.role)}</div>${a.url?`<div class="jt-cell-sub"><a class="jt-link" href="${esc(safeUrl(a.url))}" target="_blank" rel="noopener">Job listing</a></div>`:''}</td><td>${esc(a.company)}<div class="jt-cell-sub">${esc(a.contact||'')}</div></td><td>${badge(a.status)}</td><td>${a.appliedDate?displayDate(a.appliedDate):'Not yet'}</td><td>${esc(a.nextAction||'Not set')}<div class="jt-cell-sub">${a.nextDate?displayDate(a.nextDate):''}</div></td><td><div class="jt-actions"><button class="jt-btn small" data-action="edit-application" data-id="${a.id}">Edit</button><button class="jt-btn small danger" data-action="delete-application" data-id="${a.id}">Delete</button></div></td></tr>`).join(''):`<tr><td colspan="6"><div class="jt-empty">No applications yet. Add interesting roles before applying so nothing gets lost.</div></td></tr>`; });
+    }
+
+    function fieldHtml(field,value) { const required=field.required?' required':''; let control; if(field.type==='select') control=`<select class="jt-select" name="${field.name}"${required}>${field.options.map(o=>`<option value="${esc(o)}" ${String(value||field.default||'')===o?'selected':''}>${esc(o)}</option>`).join('')}</select>`; else if(field.type==='textarea') control=`<textarea class="jt-textarea" name="${field.name}"${required}>${esc(value||'')}</textarea>`; else control=`<input class="jt-input" name="${field.name}" type="${field.type||'text'}" value="${esc(value||'')}"${required} />`; return `<label class="jt-field${field.full?' full':''}"><span class="jt-label">${esc(field.label)}${field.required?' *':''}</span>${control}</label>`; }
+    function openModal(title,fields,values,onSubmit) { modalTitle.textContent=title; modalBody.innerHTML=`<form class="jt-form" id="jtForm"><div class="jt-form-grid">${fields.map(f=>fieldHtml(f,values[f.name])).join('')}</div><div class="jt-form-actions"><button class="jt-btn" type="button" data-action="close-modal">Cancel</button><button class="jt-btn primary" type="submit">Save</button></div></form>`; modalBackdrop.classList.add('open'); modalBackdrop.setAttribute('aria-hidden','false'); const form=modalBody.querySelector('#jtForm'); form.addEventListener('submit',async event=>{event.preventDefault();const data={};fields.forEach(f=>data[f.name]=form.elements[f.name]?form.elements[f.name].value.trim():'');if(fields.some(f=>f.required&&!data[f.name])){showToast('Please complete the required fields.');return;}await onSubmit(data);closeModal();render();});const first=form.querySelector('input,select,textarea');if(first)setTimeout(()=>first.focus(),30); }
+    function closeModal(){modalBackdrop.classList.remove('open');modalBackdrop.setAttribute('aria-hidden','true');modalBody.innerHTML='';}
+    const personFields=category=>[{name:'name',label:'Name',required:true},{name:'title',label:'Current title'},{name:'company',label:'Company'},{name:'category',label:'Category',type:'select',default:category||'unclassified',options:['unclassified','creative','company-recruiter','independent-recruiter']},{name:'priority',label:'Priority',type:'select',default:'Medium',options:['High','Medium','Low']},{name:'relationship',label:'Relationship',type:'select',default:'Not contacted',options:['Not contacted','Connected','Contacted','Replied','Meeting booked']},{name:'linkedin',label:'LinkedIn URL',full:true},{name:'lastContact',label:'Last contact',type:'date'},{name:'nextFollowUp',label:'Next follow-up',type:'date'},{name:'notes',label:'Notes / why they matter',type:'textarea',full:true}];
+    function editPerson(person,category){const existing=person||{id:id('person'),category:category||'unclassified',priority:'Medium',relationship:'Not contacted'};openModal(person?'Edit person':'Add person',personFields(category),existing,async data=>{const record=Object.assign({},existing,data);if(person)Object.assign(person,record);else state.people.unshift(record);addActivity((person?'Updated ':'Added ')+record.name);await save();showToast(person?'Person updated.':'Person added.');});}
+    function editAgency(agency){const existing=agency||{id:id('agency'),priority:'Medium',status:'Researching'};openModal(agency?'Edit agency':'Add agency',[{name:'name',label:'Agency',required:true},{name:'priority',label:'Priority',type:'select',default:'Medium',options:['Dream','High','Medium','Low']},{name:'status',label:'Status',type:'select',default:'Researching',options:['Researching','Ready to contact','Contacted','Meeting','Archived']},{name:'website',label:'Website'},{name:'notes',label:'Notes',type:'textarea',full:true}],existing,async data=>{const oldName=existing.name;Object.assign(existing,data);if(!agency)state.agencies.unshift(existing);else if(oldName!==data.name)state.people.forEach(p=>{if(p.company===oldName)p.company=data.name;});addActivity((agency?'Updated ':'Added ')+data.name);await save();showToast(agency?'Agency updated.':'Agency added.');});}
+    function editTarget(target){const existing=target||{id:id('target'),priority:'Medium',status:'Researching'};openModal(target?'Edit in-house target':'Add in-house target',[{name:'company',label:'Company',required:true},{name:'category',label:'Category',type:'select',default:'Other',options:['Beauty','Sports','Entertainment','Technology','Lifestyle','Finance','Other']},{name:'priority',label:'Priority',type:'select',default:'Medium',options:['Dream','High','Medium','Low']},{name:'status',label:'Status',type:'select',default:'Researching',options:['Researching','Watching','Opening found','Contacted','Archived']},{name:'contact',label:'Key contact',full:true},{name:'notes',label:'Notes',type:'textarea',full:true}],existing,async data=>{Object.assign(existing,data);if(!target)state.targets.unshift(existing);addActivity((target?'Updated ':'Added ')+data.company);await save();showToast(target?'Target updated.':'Target added.');});}
+    function editApplication(application){const existing=application||{id:id('application'),priority:'High',status:'Interested'};openModal(application?'Edit application':'Add application',[{name:'role',label:'Role',required:true},{name:'company',label:'Company',required:true},{name:'priority',label:'Priority',type:'select',default:'High',options:['High','Medium','Low']},{name:'status',label:'Status',type:'select',default:'Interested',options:['Interested','Applied','Recruiter screen','Interview','Final round','Offer','Rejected','Withdrawn']},{name:'appliedDate',label:'Applied date',type:'date'},{name:'contact',label:'Contact'},{name:'nextAction',label:'Next action'},{name:'nextDate',label:'Next action date',type:'date'},{name:'url',label:'Job listing URL',full:true},{name:'notes',label:'Notes',type:'textarea',full:true}],existing,async data=>{Object.assign(existing,data);if(!application)state.applications.unshift(existing);addActivity((application?'Updated ':'Added ')+data.role+' at '+data.company);await save();showToast(application?'Application updated.':'Application added.');});}
+
+    function parseCsv(text){const rows=[];let row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){const char=text[i],next=text[i+1];if(char==='"'&&quoted&&next==='"'){cell+='"';i++;}else if(char==='"')quoted=!quoted;else if(char===','&&!quoted){row.push(cell);cell='';}else if((char==='\n'||char==='\r')&&!quoted){if(char==='\r'&&next==='\n')i++;row.push(cell);cell='';if(row.some(v=>v.trim()))rows.push(row);row=[];}else cell+=char;}row.push(cell);if(row.some(v=>v.trim()))rows.push(row);return rows;}
+    async function importCsv(file){const text=await file.text(),rows=parseCsv(text);if(rows.length<2)throw new Error('The CSV is empty.');const headers=rows[0].map(normal),col=names=>{for(const name of names){const index=headers.indexOf(normal(name));if(index>=0)return index;}return -1;},firstCol=col(['First Name','FirstName']),lastCol=col(['Last Name','LastName']),urlCol=col(['URL','Profile URL']),companyCol=col(['Company']),positionCol=col(['Position','Title']),dateCol=col(['Connected On','Connected']);if(firstCol<0&&lastCol<0)throw new Error('This does not look like LinkedIn Connections.csv.');let added=0,skipped=0;rows.slice(1).forEach(row=>{const name=[row[firstCol]||'',row[lastCol]||''].join(' ').trim(),linkedin=urlCol>=0?(row[urlCol]||'').trim():'',company=companyCol>=0?(row[companyCol]||'').trim():'',duplicate=state.people.some(p=>(linkedin&&normal(p.linkedin)===normal(linkedin))||(normal(p.name)===normal(name)&&normal(p.company)===normal(company)));if(!name||duplicate){skipped++;return;}state.people.push({id:id('person'),name,title:positionCol>=0?(row[positionCol]||'').trim():'',company,category:'unclassified',priority:'Medium',relationship:'Connected',linkedin,lastContact:'',nextFollowUp:'',notes:'Imported from LinkedIn',connectedOn:dateCol>=0?(row[dateCol]||'').trim():''});added++;});addActivity('Imported '+added+' LinkedIn connections');await save();activeView='network';render();showToast('Imported '+added+' connections. '+skipped+' duplicates or blank rows skipped.');}
+    async function deleteRecord(collection,record,label){if(!record)return;collection.splice(collection.indexOf(record),1);addActivity('Removed '+label);await save();render();showToast('Removed.');}
+
+    root.addEventListener('click',event=>{const target=event.target.closest('[data-view],[data-action]');if(!target)return;if(target.dataset.view){activeView=target.dataset.view;render();return;}const action=target.dataset.action;if(action==='close-modal')closeModal();else if(action==='quick-add')editPerson(null,'unclassified');else if(action==='add-person')editPerson(null,target.dataset.category||'unclassified');else if(action==='edit-person')editPerson(state.people.find(p=>p.id===target.dataset.id));else if(action==='delete-person')deleteRecord(state.people,state.people.find(p=>p.id===target.dataset.id),'person');else if(action==='add-agency')editAgency();else if(action==='edit-agency')editAgency(state.agencies.find(a=>a.id===target.dataset.id));else if(action==='view-agency-people'){const agency=state.agencies.find(a=>a.id===target.dataset.id);activeView='creatives';renderPeople('creative','Creatives at '+agency.name,'People currently associated with this agency.',agency.name);renderNav();}else if(action==='add-target')editTarget();else if(action==='edit-target')editTarget(state.targets.find(t=>t.id===target.dataset.id));else if(action==='delete-target')deleteRecord(state.targets,state.targets.find(t=>t.id===target.dataset.id),'target');else if(action==='add-application')editApplication();else if(action==='edit-application')editApplication(state.applications.find(a=>a.id===target.dataset.id));else if(action==='delete-application')deleteRecord(state.applications,state.applications.find(a=>a.id===target.dataset.id),'application');else if(action==='import-csv')csvInput.click();});
+    modalBackdrop.addEventListener('click',event=>{if(event.target===modalBackdrop)closeModal();});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'&&modalBackdrop.classList.contains('open'))closeModal();});
+    csvInput.addEventListener('change',async()=>{const file=csvInput.files&&csvInput.files[0];if(!file)return;try{await importCsv(file);}catch(error){showToast(error.message||'Could not import this CSV.');}csvInput.value='';});
+    load();
+  })();
+  </script>
+</div>
+</body>
+</html>
