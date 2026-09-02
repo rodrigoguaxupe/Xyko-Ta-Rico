@@ -50,23 +50,20 @@
     padding:16px; margin:0 0 10px;
   }
   .xp-fab{ display:none; }
-  .xp-withdraw-card{
-    background:#4A4A46; margin-top:14px;
-  }
-  .xp-withdraw-note{
-    font-size:12px; color:rgba(255,255,255,0.75); margin-top:8px;
+  .xp-balance-card{
+    background:#4A4A46 !important;
   }
   .xp-inflation-row{
-    font-size:12px; color:rgba(255,255,255,0.85); margin-top:14px;
-    padding-top:12px; border-top:1px solid rgba(255,255,255,0.15);
+    font-size:11px; color:rgba(255,255,255,0.8); margin-top:10px;
+    padding-top:10px; border-top:1px solid rgba(255,255,255,0.15);
   }
   .xp-inflation-row .budget-limit-value{
     color:#fff; border-bottom-color:rgba(255,255,255,0.5);
   }
   #xpRecommendedRow{
-    margin-top:8px; padding-top:0; border-top:none;
+    margin-top:4px; padding-top:0; border-top:none;
   }
-  #xpRecommendedRow strong{ color:#fff; }
+  #xpRecommendedRow strong{ color:#fff; font-size:12px; }
 
   header.top{
     padding:calc(22px + env(safe-area-inset-top)) 16px 10px;
@@ -551,15 +548,9 @@
     <h1>XP</h1>
   </header>
 
-  <div class="summary-card fixed-card">
+  <div class="summary-card xp-balance-card">
     <div class="summary-net-label">Saldo atual</div>
     <div class="summary-net" id="xpBalanceAmt">R$0</div>
-  </div>
-
-  <div class="summary-card xp-withdraw-card">
-    <div class="summary-net-label">Retirada mensal sustentável</div>
-    <div class="summary-net" id="xpWithdrawAmt">—</div>
-    <div class="xp-withdraw-note" id="xpWithdrawNote">Adicione pelo menos 2 meses de saldo para calcular.</div>
     <div class="xp-inflation-row">
       Inflação anual (IPCA) usada: <span class="budget-limit-value" id="xpInflationValue" data-cat="inflation">4,44%</span>
     </div>
@@ -582,7 +573,7 @@
 <button class="fab xp-fab" id="xpOpenAdd" aria-label="Adicionar saldo XP">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 38</div>
+<div class="version-label">versão 39</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -1386,23 +1377,15 @@ function xpComputeAnnualReturn(){
 }
 function xpRenderWithdrawCard(){
   const nominal = xpComputeAnnualReturn();
-  const amtEl = document.getElementById('xpWithdrawAmt');
-  const noteEl = document.getElementById('xpWithdrawNote');
   const recEl = document.getElementById('xpRecommendedAmt');
   if(nominal === null){
-    amtEl.textContent = "—";
-    noteEl.textContent = "Adicione pelo menos 2 meses de saldo para calcular.";
     recEl.textContent = "—";
     return;
   }
   const real = (1 + nominal) / (1 + xpInflationRate) - 1;
   const balance = xpCurrentBalance();
   const monthly = Math.max(0, balance * real / 12);
-  amtEl.textContent = fmt(monthly);
   recEl.textContent = fmt(monthly);
-  const nominalPct = (nominal * 100).toFixed(1).replace('.', ',');
-  const realPct = (real * 100).toFixed(1).replace('.', ',');
-  noteEl.textContent = `Baseado no retorno real observado: ${nominalPct}% ao ano (${realPct}% acima da inflação).`;
 }
 let xpIpcaFetching = false;
 async function fetchCurrentIPCA(){
