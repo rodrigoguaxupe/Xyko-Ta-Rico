@@ -35,11 +35,43 @@
     padding-bottom:100px;
   }
   .app{max-width:480px;margin:0 auto;padding:0 16px;}
+  .xp-app{
+    max-width:480px;margin:0 auto;padding:0 16px 90px;
+    display:none;
+  }
+  .xp-app.open{display:block;}
+  .xp-header{ justify-content:flex-start !important; gap:16px; }
+  .xp-back-btn{
+    background:none; border:none; color:var(--ink-soft);
+    font-size:15px; cursor:pointer; padding:4px 0;
+  }
+  .xp-chart-wrap{
+    background:var(--surface); border-radius:var(--radius);
+    padding:16px; margin:0 0 10px;
+  }
+  .xp-fab{ display:none; }
+  .xp-withdraw-card{
+    background:#4A4A46; margin-top:14px;
+  }
+  .xp-withdraw-note{
+    font-size:12px; color:rgba(255,255,255,0.75); margin-top:8px;
+  }
+  .xp-inflation-row{
+    font-size:12px; color:rgba(255,255,255,0.85); margin-top:14px;
+    padding-top:12px; border-top:1px solid rgba(255,255,255,0.15);
+  }
+  .xp-inflation-row .budget-limit-value{
+    color:#fff; border-bottom-color:rgba(255,255,255,0.5);
+  }
 
   header.top{
     padding:calc(22px + env(safe-area-inset-top)) 16px 10px;
     max-width:480px;
     margin:0 auto;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
   }
   header.top h1{
     font-family:Georgia,'Iowan Old Style',serif;
@@ -49,6 +81,18 @@
     color:var(--primary);
     letter-spacing:0.2px;
   }
+  .xp-tab-btn{
+    flex-shrink:0;
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    opacity:0.28;
+    font-size:12px;
+    font-weight:700;
+    padding:8px;
+    cursor:pointer;
+  }
+  .xp-tab-btn:active{ opacity:0.7; }
   header.top p{
     margin:4px 0 0;
     font-size:13px;
@@ -342,6 +386,7 @@
   }
   .btn-cancel{background:var(--bg); color:var(--ink-soft);}
   .btn-save{background:var(--primary); color:white;}
+  .xp-error{ color:#B23B3B; font-size:13px; margin-top:8px; }
 
   .status{
     text-align:center; font-size:12px; color:var(--ink-soft); margin-top:18px;
@@ -410,6 +455,7 @@
 <div class="app">
   <header class="top">
     <h1>Xyko tá Rico</h1>
+    <button class="xp-tab-btn" id="openXpBtn" aria-label="XP" title="XP">$</button>
   </header>
 
   <div class="goal-card" id="goalCard">
@@ -495,13 +541,102 @@
   <div class="status" id="statusLine">Salvo</div>
 </div>
 
+<div class="xp-app" id="xpView">
+  <header class="top xp-header">
+    <button class="xp-back-btn" id="xpBackBtn" aria-label="Voltar">‹ Voltar</button>
+    <h1>XP</h1>
+  </header>
+
+  <div class="summary-card fixed-card">
+    <div class="summary-net-label">Saldo atual</div>
+    <div class="summary-net" id="xpBalanceAmt">R$0</div>
+  </div>
+
+  <div class="summary-card xp-withdraw-card">
+    <div class="summary-net-label">Retirada mensal sustentável</div>
+    <div class="summary-net" id="xpWithdrawAmt">—</div>
+    <div class="xp-withdraw-note" id="xpWithdrawNote">Adicione pelo menos 2 meses de saldo para calcular.</div>
+    <div class="xp-inflation-row">
+      Inflação anual (IPCA) usada: <span class="budget-limit-value" id="xpInflationValue" data-cat="inflation">4,44%</span>
+    </div>
+  </div>
+
+  <div class="section-title">Evolução mensal</div>
+  <div id="xpChart" class="xp-chart-wrap"></div>
+
+  <div class="section-title">Retiradas</div>
+  <div class="ledger" id="xpWithdrawalList"></div>
+
+  <div class="section-title">Saldos registrados</div>
+  <div class="ledger" id="xpLedgerList"></div>
+</div>
+
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
+<button class="fab xp-fab" id="xpOpenAdd" aria-label="Adicionar saldo XP">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 28</div>
+<div class="version-label">versão 36</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
+</div>
+
+<div class="sheet-backdrop" id="xpPasscodeBackdrop">
+  <div class="sheet">
+    <h2>XP</h2>
+    <label>Senha</label>
+    <input type="password" id="xpPasscodeInput" placeholder="Digite a senha" autocomplete="off">
+    <div id="xpPasscodeError" class="xp-error" style="display:none;">Senha incorreta.</div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" id="xpPasscodeCancel">Cancelar</button>
+      <button class="btn-save" id="xpPasscodeConfirm">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="xpBackdrop">
+  <div class="sheet">
+    <h2 id="xpSheetTitle">Novo</h2>
+    <div class="toggle-row" id="xpEntryTypeRow">
+      <button type="button" id="xpModeBalance" class="active income">Saldo do mês</button>
+      <button type="button" id="xpModeWithdrawal" class="expense">Retirada</button>
+    </div>
+
+    <div id="xpBalanceFields">
+      <label>Mês</label>
+      <input type="month" id="xpMonthInput">
+
+      <label>Saldo total</label>
+      <input type="number" inputmode="decimal" id="xpBalanceInput" placeholder="0.00" step="0.01">
+
+      <label>Observação (opcional)</label>
+      <textarea id="xpBalanceNoteInput" placeholder="opcional"></textarea>
+    </div>
+
+    <div id="xpWithdrawalFields" style="display:none;">
+      <label>Valor</label>
+      <input type="number" inputmode="decimal" id="xpWAmountInput" placeholder="0.00" step="0.01">
+
+      <div class="field-row" id="xpWRecorrenteRow">
+        <input type="checkbox" id="xpWRecorrenteCheck">
+        <label class="inline-label" for="xpWRecorrenteCheck">Recorrente (repete todo mês)</label>
+      </div>
+      <div id="xpWRecorrenteEditNote" class="recurring-note" style="display:none;">
+        🔁 Recorrente — alterar o valor aqui atualiza os próximos meses automaticamente. Meses passados não mudam.
+      </div>
+
+      <label>Data</label>
+      <input type="date" id="xpWDateInput">
+
+      <label>Observação (opcional)</label>
+      <textarea id="xpWNoteInput" placeholder="ex: carro, passagens NY, pai..."></textarea>
+    </div>
+
+    <div class="sheet-actions">
+      <button class="btn-cancel" id="xpCancelAdd">Cancelar</button>
+      <button class="btn-save" id="xpSaveAdd">Salvar</button>
+    </div>
+  </div>
 </div>
 
 <div class="sheet-backdrop" id="backdrop">
@@ -584,6 +719,10 @@ let categoriesRef = null;
 let budgetLimitsRef = null;
 let recurringTemplatesRef = null;
 let layoutRef = null;
+let xpSnapshotsRef = null;
+let xpInflationRef = null;
+let xpWithdrawalsRef = null;
+let xpRecurringWithdrawalsRef = null;
 let firebaseError = null;
 try{
   firebase.initializeApp(firebaseConfig);
@@ -592,6 +731,10 @@ try{
   budgetLimitsRef = firebase.database().ref('budgetLimits');
   recurringTemplatesRef = firebase.database().ref('recurringTemplates');
   layoutRef = firebase.database().ref('blockOrder');
+  xpSnapshotsRef = firebase.database().ref('xpSnapshots');
+  xpInflationRef = firebase.database().ref('xpInflationRate');
+  xpWithdrawalsRef = firebase.database().ref('xpWithdrawals');
+  xpRecurringWithdrawalsRef = firebase.database().ref('xpRecurringWithdrawals');
 }catch(e){
   console.error('Firebase init failed:', e);
   firebaseError = e;
@@ -1105,6 +1248,488 @@ function loadBlockOrder(){
   });
 }
 
+/* ===== XP ===== */
+const XP_PASSCODE = "peladoro";
+let xpUnlocked = false;
+let xpSnapshots = {};
+let xpWithdrawals = {};
+let xpRecurringWithdrawals = {};
+let xpInflationRate = 0.0444;
+let xpEditingMonth = null;
+let xpEditingWithdrawalId = null;
+let xpMode = 'balance';
+let xpWithdrawalsLoadedOnce = false;
+let xpRecurringLoadedOnce = false;
+
+function loadXpSnapshots(){
+  if(!xpSnapshotsRef) return;
+  xpSnapshotsRef.on('value', (snapshot) => {
+    xpSnapshots = snapshot.val() || {};
+    if(document.getElementById('xpView').classList.contains('open')) renderXP();
+  });
+}
+function loadXpInflation(){
+  if(!xpInflationRef) return;
+  xpInflationRef.on('value', (snapshot) => {
+    const val = snapshot.val();
+    if(typeof val === 'number' && val > 0) xpInflationRate = val;
+    if(document.getElementById('xpView').classList.contains('open')) renderXP();
+  });
+}
+function loadXpWithdrawals(){
+  if(!xpWithdrawalsRef) return;
+  xpWithdrawalsRef.on('value', (snapshot) => {
+    xpWithdrawals = snapshot.val() || {};
+    xpWithdrawalsLoadedOnce = true;
+    maybeGenerateXpRecurringWithdrawals();
+    if(document.getElementById('xpView').classList.contains('open')) renderXP();
+  });
+}
+function loadXpRecurringWithdrawals(){
+  if(!xpRecurringWithdrawalsRef) return;
+  xpRecurringWithdrawalsRef.on('value', (snapshot) => {
+    xpRecurringWithdrawals = snapshot.val() || {};
+    xpRecurringLoadedOnce = true;
+    maybeGenerateXpRecurringWithdrawals();
+    if(document.getElementById('xpView').classList.contains('open')) renderXP();
+  });
+}
+async function persistXpSnapshots(){
+  if(!xpSnapshotsRef) return;
+  try{ await xpSnapshotsRef.set(xpSnapshots); }
+  catch(e){ console.error('Failed to save XP snapshots:', e); }
+}
+async function persistXpWithdrawals(){
+  if(!xpWithdrawalsRef) return;
+  try{ await xpWithdrawalsRef.set(xpWithdrawals); }
+  catch(e){ console.error('Failed to save XP withdrawals:', e); }
+}
+async function maybeGenerateXpRecurringWithdrawals(){
+  if(!xpWithdrawalsLoadedOnce || !xpRecurringLoadedOnce) return;
+  const endCursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  let added = false;
+  const wds = Object.values(xpWithdrawals);
+
+  Object.keys(xpRecurringWithdrawals).forEach((tid) => {
+    const t = xpRecurringWithdrawals[tid];
+    if(!t || t.active === false) return;
+    let cursor = new Date(t.startYear, t.startMonth, 1);
+    while(cursor <= endCursor){
+      const y = cursor.getFullYear();
+      const m = cursor.getMonth();
+      const mk = y + "-" + String(m+1).padStart(2,'0');
+      const already = wds.some(w => w.recurringId === tid && w.date && w.date.slice(0,7) === mk);
+      if(!already){
+        const day = Math.min(t.dayOfMonth, daysInMonth(y, m));
+        const dateStr = mk + "-" + String(day).padStart(2,'0');
+        const id = 'xw_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+        xpWithdrawals[id] = { id, amount: t.amount, date: dateStr, note: t.note || "", createdAt: Date.now(), recurringId: tid };
+        added = true;
+      }
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+  });
+
+  if(added){
+    if(document.getElementById('xpView').classList.contains('open')) renderXP();
+    await persistXpWithdrawals();
+  }
+}
+
+function xpSortedSnapshots(){
+  return Object.keys(xpSnapshots)
+    .map(mk => ({ month: mk, ...xpSnapshots[mk] }))
+    .sort((a,b) => a.month.localeCompare(b.month));
+}
+function xpSortedWithdrawals(){
+  return Object.values(xpWithdrawals).sort((a,b) => (a.date||'').localeCompare(b.date||'') || (a.createdAt||0)-(b.createdAt||0));
+}
+function xpWithdrawnInMonth(mk){
+  return xpSortedWithdrawals()
+    .filter(w => w.date && w.date.slice(0,7) === mk)
+    .reduce((s,w) => s + w.amount, 0);
+}
+function xpCurrentBalance(){
+  const snaps = xpSortedSnapshots();
+  return snaps.length ? snaps[snaps.length - 1].balance : 0;
+}
+function xpComputeAnnualReturn(){
+  const snaps = xpSortedSnapshots();
+  if(snaps.length < 2) return null;
+  let logSum = 0;
+  let count = 0;
+  for(let i = 1; i < snaps.length; i++){
+    const prev = snaps[i-1].balance;
+    const withdrawn = xpWithdrawnInMonth(snaps[i].month);
+    if(!prev || prev <= 0) continue;
+    const factor = (snaps[i].balance + withdrawn) / prev;
+    if(factor <= 0) continue;
+    logSum += Math.log(factor);
+    count++;
+  }
+  if(count === 0) return null;
+  const avgMonthlyFactor = Math.exp(logSum / count);
+  return Math.pow(avgMonthlyFactor, 12) - 1;
+}
+function xpRenderWithdrawCard(){
+  const nominal = xpComputeAnnualReturn();
+  const amtEl = document.getElementById('xpWithdrawAmt');
+  const noteEl = document.getElementById('xpWithdrawNote');
+  if(nominal === null){
+    amtEl.textContent = "—";
+    noteEl.textContent = "Adicione pelo menos 2 meses de saldo para calcular.";
+    return;
+  }
+  const real = (1 + nominal) / (1 + xpInflationRate) - 1;
+  const balance = xpCurrentBalance();
+  const monthly = Math.max(0, balance * real / 12);
+  amtEl.textContent = fmt(monthly);
+  const nominalPct = (nominal * 100).toFixed(1).replace('.', ',');
+  const realPct = (real * 100).toFixed(1).replace('.', ',');
+  noteEl.textContent = `Baseado no retorno real observado: ${nominalPct}% ao ano (${realPct}% acima da inflação).`;
+}
+let xpIpcaFetching = false;
+async function fetchCurrentIPCA(){
+  if(xpIpcaFetching) return;
+  xpIpcaFetching = true;
+  try{
+    const res = await fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/12?formato=json');
+    if(!res.ok) throw new Error('IPCA fetch failed: ' + res.status);
+    const data = await res.json();
+    let factor = 1;
+    data.forEach(d => { factor *= (1 + parseFloat(d.valor) / 100); });
+    const accumulated = factor - 1;
+    if(accumulated > 0 && accumulated < 1){
+      xpInflationRate = accumulated;
+      if(xpInflationRef){
+        try{ await xpInflationRef.set(xpInflationRate); }
+        catch(e){ console.error('Failed to save auto-fetched IPCA:', e); }
+      }
+      if(document.getElementById('xpView').classList.contains('open')) renderXP();
+    }
+  }catch(e){
+    console.error('Failed to fetch current IPCA, keeping last known value:', e);
+  }finally{
+    xpIpcaFetching = false;
+  }
+}
+
+function startEditXpInflation(el){
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.inputMode = 'decimal';
+  input.step = '0.01';
+  input.className = 'budget-limit-input';
+  input.value = (xpInflationRate * 100).toFixed(2);
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  const commit = async () => {
+    if(committed) return;
+    committed = true;
+    const val = parseFloat(input.value);
+    if(val && val > 0){
+      xpInflationRate = val / 100;
+      if(xpInflationRef){
+        try{ await xpInflationRef.set(xpInflationRate); }
+        catch(e){ console.error('Failed to save XP inflation rate:', e); }
+      }
+    }
+    renderXP();
+  };
+  input.addEventListener('keydown', (e) => {
+    if(e.key === 'Enter'){ e.preventDefault(); input.blur(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+function renderXpChart(){
+  const snaps = xpSortedSnapshots();
+  const wrap = document.getElementById('xpChart');
+  if(!snaps.length){
+    wrap.innerHTML = '<div class="empty">Nenhum saldo registrado ainda.</div>';
+    return;
+  }
+  const W = 320, H = 150, padL = 8, padR = 8, padT = 12, padB = 22;
+  const values = snaps.map(s => s.balance);
+  const min = Math.min(0, ...values);
+  const max = Math.max(...values, 1);
+  const range = (max - min) || 1;
+  const stepX = snaps.length > 1 ? (W - padL - padR) / (snaps.length - 1) : 0;
+  const points = snaps.map((s,i) => {
+    const x = padL + i * stepX;
+    const y = padT + (1 - (s.balance - min)/range) * (H - padT - padB);
+    return [x, y];
+  });
+  const pathD = points.map((p,i) => (i===0?'M':'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const areaD = pathD + ` L${points[points.length-1][0].toFixed(1)},${H-padB} L${points[0][0].toFixed(1)},${H-padB} Z`;
+
+  const labelIdxs = snaps.length <= 6 ? snaps.map((_,i)=>i) : [0, Math.floor((snaps.length-1)/2), snaps.length-1];
+  const labels = labelIdxs.map(i => {
+    const [y,m] = snaps[i].month.split('-');
+    const d = new Date(parseInt(y), parseInt(m)-1, 1);
+    const label = d.toLocaleDateString('pt-BR', {month:'short'}).replace('.','');
+    return `<text x="${points[i][0].toFixed(1)}" y="${H-6}" font-size="9" fill="#5B6B62" text-anchor="middle">${label}</text>`;
+  }).join('');
+
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;">
+    <path d="${areaD}" fill="rgba(47,93,78,0.12)" stroke="none"/>
+    <path d="${pathD}" fill="none" stroke="#2F5D4E" stroke-width="2"/>
+    ${labels}
+  </svg>`;
+}
+
+function renderXP(){
+  document.getElementById('xpBalanceAmt').textContent = fmt(xpCurrentBalance());
+  document.getElementById('xpInflationValue').textContent = (xpInflationRate * 100).toFixed(2).replace('.', ',') + '%';
+  xpRenderWithdrawCard();
+  renderXpChart();
+
+  const infEl = document.getElementById('xpInflationValue');
+  const freshInfEl = infEl.cloneNode(true);
+  infEl.replaceWith(freshInfEl);
+  freshInfEl.addEventListener('click', () => startEditXpInflation(freshInfEl));
+
+  const listEl = document.getElementById('xpLedgerList');
+  listEl.innerHTML = "";
+  const snaps = xpSortedSnapshots().slice().reverse();
+  if(!snaps.length){
+    listEl.innerHTML = '<div class="empty">Nenhum saldo registrado ainda.<br>Toque em + para adicionar o primeiro.</div>';
+  } else {
+    snaps.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'entry';
+      row.style.cursor = 'pointer';
+      const [y,m] = s.month.split('-');
+      const monthLabel = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
+      const withdrawnAmt = xpWithdrawnInMonth(s.month);
+      const withdrawnTag = withdrawnAmt ? ` · retirou ${fmt(withdrawnAmt)}` : '';
+      row.innerHTML = `
+        <div class="mid">
+          <div class="cat">${monthLabel}</div>
+          <div class="meta">${s.note ? s.note : 'Saldo registrado'}${withdrawnTag}</div>
+        </div>
+        <div class="amt income">${fmt(s.balance)}</div>
+        <button class="del" data-month="${s.month}" aria-label="Excluir">×</button>
+      `;
+      row.addEventListener('click', (evt) => {
+        if(evt.target.closest('.del')) return;
+        openXpBalanceEditSheet(s);
+      });
+      row.querySelector('.del').onclick = (evt) => {
+        evt.stopPropagation();
+        if(confirm("Excluir este saldo?")){
+          delete xpSnapshots[s.month];
+          renderXP();
+          persistXpSnapshots();
+        }
+      };
+      listEl.appendChild(row);
+    });
+  }
+
+  const wListEl = document.getElementById('xpWithdrawalList');
+  wListEl.innerHTML = "";
+  const wds = xpSortedWithdrawals().slice().reverse();
+  if(!wds.length){
+    wListEl.innerHTML = '<div class="empty">Nenhuma retirada registrada ainda.</div>';
+  } else {
+    wds.forEach(w => {
+      const row = document.createElement('div');
+      row.className = 'entry';
+      row.style.cursor = 'pointer';
+      const dateLabel = new Date(w.date + 'T00:00:00').toLocaleDateString('pt-BR',{month:'short', day:'numeric'});
+      const recurringTag = w.recurringId ? ` · 🔁` : '';
+      row.innerHTML = `
+        <div class="mid">
+          <div class="cat">${w.note || 'Retirada'}</div>
+          <div class="meta">${dateLabel}${recurringTag}</div>
+        </div>
+        <div class="amt expense">-${fmt(w.amount)}</div>
+        <button class="del" data-id="${w.id}" aria-label="Excluir">×</button>
+      `;
+      row.addEventListener('click', (evt) => {
+        if(evt.target.closest('.del')) return;
+        openXpWithdrawalEditSheet(w);
+      });
+      row.querySelector('.del').onclick = (evt) => {
+        evt.stopPropagation();
+        if(confirm("Excluir esta retirada?")){
+          delete xpWithdrawals[w.id];
+          renderXP();
+          persistXpWithdrawals();
+        }
+      };
+      wListEl.appendChild(row);
+    });
+  }
+}
+
+function showXpView(){
+  document.getElementById('xpView').classList.add('open');
+  document.querySelector('.app').style.display = 'none';
+  document.getElementById('openAdd').style.display = 'none';
+  document.getElementById('xpOpenAdd').style.display = 'flex';
+  renderXP();
+}
+function hideXpView(){
+  document.getElementById('xpView').classList.remove('open');
+  document.querySelector('.app').style.display = 'block';
+  document.getElementById('openAdd').style.display = 'flex';
+  document.getElementById('xpOpenAdd').style.display = 'none';
+}
+
+document.getElementById('openXpBtn').onclick = () => {
+  if(xpUnlocked){
+    showXpView();
+    return;
+  }
+  document.getElementById('xpPasscodeInput').value = "";
+  document.getElementById('xpPasscodeError').style.display = 'none';
+  document.getElementById('xpPasscodeBackdrop').classList.add('open');
+  document.getElementById('xpPasscodeInput').focus();
+};
+document.getElementById('xpPasscodeCancel').onclick = () => {
+  document.getElementById('xpPasscodeBackdrop').classList.remove('open');
+};
+function checkXpPasscode(){
+  const val = document.getElementById('xpPasscodeInput').value.trim().toLowerCase();
+  if(val === XP_PASSCODE){
+    xpUnlocked = true;
+    document.getElementById('xpPasscodeBackdrop').classList.remove('open');
+    showXpView();
+  } else {
+    document.getElementById('xpPasscodeError').style.display = 'block';
+  }
+}
+document.getElementById('xpPasscodeConfirm').onclick = checkXpPasscode;
+document.getElementById('xpPasscodeInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); checkXpPasscode(); }
+});
+document.getElementById('xpBackBtn').onclick = hideXpView;
+
+function setXpMode(mode){
+  xpMode = mode;
+  document.getElementById('xpModeBalance').classList.toggle('active', mode === 'balance');
+  document.getElementById('xpModeWithdrawal').classList.toggle('active', mode === 'withdrawal');
+  document.getElementById('xpBalanceFields').style.display = mode === 'balance' ? 'block' : 'none';
+  document.getElementById('xpWithdrawalFields').style.display = mode === 'withdrawal' ? 'block' : 'none';
+
+  const editingWithdrawal = mode === 'withdrawal' && xpEditingWithdrawalId;
+  const showRecorrente = mode === 'withdrawal' && !xpEditingWithdrawalId;
+  document.getElementById('xpWRecorrenteRow').style.display = showRecorrente ? 'flex' : 'none';
+  if(!showRecorrente) document.getElementById('xpWRecorrenteCheck').checked = false;
+  const isEditingRecurring = !!(editingWithdrawal && xpWithdrawals[xpEditingWithdrawalId] && xpWithdrawals[xpEditingWithdrawalId].recurringId);
+  document.getElementById('xpWRecorrenteEditNote').style.display = isEditingRecurring ? 'block' : 'none';
+
+  fetchCurrentIPCA();
+}
+document.getElementById('xpModeBalance').onclick = () => setXpMode('balance');
+document.getElementById('xpModeWithdrawal').onclick = () => setXpMode('withdrawal');
+
+document.getElementById('xpOpenAdd').onclick = () => {
+  xpEditingMonth = null;
+  xpEditingWithdrawalId = null;
+  document.getElementById('xpSheetTitle').textContent = "Novo";
+  document.getElementById('xpEntryTypeRow').style.display = 'flex';
+  document.getElementById('xpMonthInput').value = monthKey(new Date());
+  document.getElementById('xpBalanceInput').value = "";
+  document.getElementById('xpBalanceNoteInput').value = "";
+  document.getElementById('xpWAmountInput').value = "";
+  document.getElementById('xpWDateInput').value = localISODate();
+  document.getElementById('xpWNoteInput').value = "";
+  document.getElementById('xpWRecorrenteCheck').checked = false;
+  setXpMode('balance');
+  document.getElementById('xpBackdrop').classList.add('open');
+};
+function openXpBalanceEditSheet(s){
+  xpEditingMonth = s.month;
+  xpEditingWithdrawalId = null;
+  document.getElementById('xpSheetTitle').textContent = "Editar saldo";
+  document.getElementById('xpEntryTypeRow').style.display = 'none';
+  document.getElementById('xpMonthInput').value = s.month;
+  document.getElementById('xpBalanceInput').value = s.balance;
+  document.getElementById('xpBalanceNoteInput').value = s.note || "";
+  setXpMode('balance');
+  document.getElementById('xpBackdrop').classList.add('open');
+}
+function openXpWithdrawalEditSheet(w){
+  xpEditingWithdrawalId = w.id;
+  xpEditingMonth = null;
+  document.getElementById('xpSheetTitle').textContent = "Editar retirada";
+  document.getElementById('xpEntryTypeRow').style.display = 'none';
+  document.getElementById('xpWAmountInput').value = w.amount;
+  document.getElementById('xpWDateInput').value = w.date;
+  document.getElementById('xpWNoteInput').value = w.note || "";
+  setXpMode('withdrawal');
+  document.getElementById('xpBackdrop').classList.add('open');
+}
+document.getElementById('xpCancelAdd').onclick = () => {
+  document.getElementById('xpBackdrop').classList.remove('open');
+};
+document.getElementById('xpSaveAdd').onclick = async () => {
+  if(xpMode === 'balance'){
+    const month = document.getElementById('xpMonthInput').value;
+    const balance = parseFloat(document.getElementById('xpBalanceInput').value);
+    if(!month){ alert("Escolha o mês."); return; }
+    if(isNaN(balance) || balance < 0){ alert("Digite um saldo válido."); return; }
+    const note = document.getElementById('xpBalanceNoteInput').value.trim();
+
+    if(xpEditingMonth && xpEditingMonth !== month){
+      delete xpSnapshots[xpEditingMonth];
+    }
+    xpSnapshots[month] = { balance, note, updatedAt: Date.now() };
+
+    xpEditingMonth = null;
+    document.getElementById('xpBackdrop').classList.remove('open');
+    renderXP();
+    await persistXpSnapshots();
+    fetchCurrentIPCA();
+  } else {
+    const amount = parseFloat(document.getElementById('xpWAmountInput').value);
+    if(!amount || amount <= 0){ alert("Digite um valor maior que 0."); return; }
+    const date = document.getElementById('xpWDateInput').value || localISODate();
+    const note = document.getElementById('xpWNoteInput').value.trim();
+    const isRecorrente = !xpEditingWithdrawalId && document.getElementById('xpWRecorrenteCheck').checked;
+    let templateUpdate = null;
+
+    if(xpEditingWithdrawalId){
+      const existing = xpWithdrawals[xpEditingWithdrawalId];
+      xpWithdrawals[xpEditingWithdrawalId] = { ...existing, amount, date, note };
+      const recurringId = existing.recurringId;
+      if(recurringId && xpRecurringWithdrawals[recurringId]){
+        xpRecurringWithdrawals = { ...xpRecurringWithdrawals, [recurringId]: { ...xpRecurringWithdrawals[recurringId], amount, note } };
+        templateUpdate = xpRecurringWithdrawals;
+      }
+    } else if(isRecorrente){
+      const d = new Date(date + 'T00:00:00');
+      const tid = 'xrw_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+      xpRecurringWithdrawals = {
+        ...xpRecurringWithdrawals,
+        [tid]: { amount, note, dayOfMonth: d.getDate(), startYear: d.getFullYear(), startMonth: d.getMonth(), active: true }
+      };
+      templateUpdate = xpRecurringWithdrawals;
+      const id = 'xw_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+      xpWithdrawals[id] = { id, amount, date, note, createdAt: Date.now(), recurringId: tid };
+    } else {
+      const id = 'xw_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+      xpWithdrawals[id] = { id, amount, date, note, createdAt: Date.now() };
+    }
+
+    xpEditingWithdrawalId = null;
+    document.getElementById('xpBackdrop').classList.remove('open');
+    renderXP();
+    await persistXpWithdrawals();
+    if(templateUpdate && xpRecurringWithdrawalsRef){
+      try{ await xpRecurringWithdrawalsRef.set(templateUpdate); }
+      catch(e){ console.error('Failed to save XP recurring withdrawal template:', e); }
+    }
+    fetchCurrentIPCA();
+  }
+};
+
 document.querySelectorAll('.dash-block').forEach((el) => {
   const blockId = el.dataset.block;
   el.querySelectorAll('.move-btn').forEach((btn) => {
@@ -1482,6 +2107,10 @@ loadCategories();
 loadBudgetLimits();
 loadRecurringTemplates();
 loadBlockOrder();
+loadXpSnapshots();
+loadXpInflation();
+loadXpWithdrawals();
+loadXpRecurringWithdrawals();
 </script>
 
 
