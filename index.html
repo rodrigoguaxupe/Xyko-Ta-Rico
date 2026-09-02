@@ -63,6 +63,10 @@
   .xp-inflation-row .budget-limit-value{
     color:#fff; border-bottom-color:rgba(255,255,255,0.5);
   }
+  #xpRecommendedRow{
+    margin-top:8px; padding-top:0; border-top:none;
+  }
+  #xpRecommendedRow strong{ color:#fff; }
 
   header.top{
     padding:calc(22px + env(safe-area-inset-top)) 16px 10px;
@@ -559,6 +563,9 @@
     <div class="xp-inflation-row">
       Inflação anual (IPCA) usada: <span class="budget-limit-value" id="xpInflationValue" data-cat="inflation">4,44%</span>
     </div>
+    <div class="xp-inflation-row" id="xpRecommendedRow">
+      Valor recomendado a retirar mensalmente: <strong id="xpRecommendedAmt">—</strong>
+    </div>
   </div>
 
   <div class="section-title">Evolução mensal</div>
@@ -575,7 +582,7 @@
 <button class="fab xp-fab" id="xpOpenAdd" aria-label="Adicionar saldo XP">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 36</div>
+<div class="version-label">versão 38</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -1351,7 +1358,13 @@ function xpWithdrawnInMonth(mk){
 }
 function xpCurrentBalance(){
   const snaps = xpSortedSnapshots();
-  return snaps.length ? snaps[snaps.length - 1].balance : 0;
+  if(!snaps.length) return 0;
+  const latest = snaps[snaps.length - 1];
+  const cutoff = latest.month + "-01";
+  const pendingWithdrawals = xpSortedWithdrawals()
+    .filter(w => w.date && w.date >= cutoff)
+    .reduce((s,w) => s + w.amount, 0);
+  return latest.balance - pendingWithdrawals;
 }
 function xpComputeAnnualReturn(){
   const snaps = xpSortedSnapshots();
@@ -1375,15 +1388,18 @@ function xpRenderWithdrawCard(){
   const nominal = xpComputeAnnualReturn();
   const amtEl = document.getElementById('xpWithdrawAmt');
   const noteEl = document.getElementById('xpWithdrawNote');
+  const recEl = document.getElementById('xpRecommendedAmt');
   if(nominal === null){
     amtEl.textContent = "—";
     noteEl.textContent = "Adicione pelo menos 2 meses de saldo para calcular.";
+    recEl.textContent = "—";
     return;
   }
   const real = (1 + nominal) / (1 + xpInflationRate) - 1;
   const balance = xpCurrentBalance();
   const monthly = Math.max(0, balance * real / 12);
   amtEl.textContent = fmt(monthly);
+  recEl.textContent = fmt(monthly);
   const nominalPct = (nominal * 100).toFixed(1).replace('.', ',');
   const realPct = (real * 100).toFixed(1).replace('.', ',');
   noteEl.textContent = `Baseado no retorno real observado: ${nominalPct}% ao ano (${realPct}% acima da inflação).`;
