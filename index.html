@@ -49,7 +49,6 @@
     background:var(--surface); border-radius:var(--radius);
     padding:16px; margin:0 0 10px;
   }
-  .xp-fab{ display:none; }
   .xp-balance-card{
     background:#4A4A46 !important;
   }
@@ -570,10 +569,9 @@
 </div>
 
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
-<button class="fab xp-fab" id="xpOpenAdd" aria-label="Adicionar saldo XP">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 39</div>
+<div class="version-label">versão 41</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -858,7 +856,7 @@ document.getElementById('renameCategoryInput').addEventListener('keydown', (e) =
   if(e.key === 'Enter'){ e.preventDefault(); confirmRenameCategory(); }
 });
 
-document.getElementById('openAdd').onclick = () => {
+function openMainAddSheet(){
   editingId = null;
   document.getElementById('sheetTitle').textContent = "Novo lançamento";
   document.getElementById('amountInput').value = "";
@@ -870,6 +868,13 @@ document.getElementById('openAdd').onclick = () => {
   document.getElementById('recorrenteCheck').checked = false;
   setType('expense');
   document.getElementById('backdrop').classList.add('open');
+}
+document.getElementById('openAdd').onclick = () => {
+  if(document.getElementById('xpView').classList.contains('open')){
+    openXpAddSheet();
+  } else {
+    openMainAddSheet();
+  }
 };
 
 function openEditSheet(entry){
@@ -1569,16 +1574,28 @@ function renderXP(){
 function showXpView(){
   document.getElementById('xpView').classList.add('open');
   document.querySelector('.app').style.display = 'none';
-  document.getElementById('openAdd').style.display = 'none';
-  document.getElementById('xpOpenAdd').style.display = 'flex';
   renderXP();
 }
 function hideXpView(){
   document.getElementById('xpView').classList.remove('open');
   document.querySelector('.app').style.display = 'block';
-  document.getElementById('openAdd').style.display = 'flex';
-  document.getElementById('xpOpenAdd').style.display = 'none';
 }
+
+function forceResetToMainDashboard(){
+  hideXpView();
+  xpUnlocked = false;
+  document.getElementById('xpBackdrop').classList.remove('open');
+  document.getElementById('xpPasscodeBackdrop').classList.remove('open');
+  document.getElementById('backdrop').classList.remove('open');
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'hidden'){
+    forceResetToMainDashboard();
+  }
+});
+window.addEventListener('pageshow', () => {
+  forceResetToMainDashboard();
+});
 
 document.getElementById('openXpBtn').onclick = () => {
   if(xpUnlocked){
@@ -1628,7 +1645,7 @@ function setXpMode(mode){
 document.getElementById('xpModeBalance').onclick = () => setXpMode('balance');
 document.getElementById('xpModeWithdrawal').onclick = () => setXpMode('withdrawal');
 
-document.getElementById('xpOpenAdd').onclick = () => {
+function openXpAddSheet(){
   xpEditingMonth = null;
   xpEditingWithdrawalId = null;
   document.getElementById('xpSheetTitle').textContent = "Novo";
@@ -1642,7 +1659,7 @@ document.getElementById('xpOpenAdd').onclick = () => {
   document.getElementById('xpWRecorrenteCheck').checked = false;
   setXpMode('balance');
   document.getElementById('xpBackdrop').classList.add('open');
-};
+}
 function openXpBalanceEditSheet(s){
   xpEditingMonth = s.month;
   xpEditingWithdrawalId = null;
@@ -2018,6 +2035,12 @@ document.getElementById('nextMonth').onclick = () => {
 
 document.getElementById('backdrop').onclick = (e) => {
   if(e.target.id === 'backdrop') document.getElementById('backdrop').classList.remove('open');
+};
+document.getElementById('xpBackdrop').onclick = (e) => {
+  if(e.target.id === 'xpBackdrop') document.getElementById('xpBackdrop').classList.remove('open');
+};
+document.getElementById('xpPasscodeBackdrop').onclick = (e) => {
+  if(e.target.id === 'xpPasscodeBackdrop') document.getElementById('xpPasscodeBackdrop').classList.remove('open');
 };
 
 const GOAL_TRACKING_START = new Date(2026, 8, 1); // September 2026 — first month with a real "previous month" to report
