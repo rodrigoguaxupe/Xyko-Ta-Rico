@@ -426,6 +426,14 @@
     font-size:12px; color:var(--ink-soft); background:var(--bg);
     border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:14px;
   }
+  .recurring-delete-actions{ display:flex; gap:8px; margin-top:10px; }
+  .stop-recurring-btn{
+    flex:1; display:block; padding:10px 6px;
+    border-radius:8px; border:1px solid #B23B3B; background:none;
+    color:#B23B3B; font-size:12px; font-weight:600; cursor:pointer;
+    line-height:1.3;
+  }
+  .stop-recurring-btn:active{ background:rgba(178,59,59,0.1); }
   .section-header{
     font-size:19px; font-weight:700; color:var(--ink);
     margin:36px 4px 14px; padding-top:22px; border-top:1px solid var(--line-strong);
@@ -571,7 +579,7 @@
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 41</div>
+<div class="version-label">versão 43</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -683,6 +691,10 @@
     </div>
     <div id="recorrenteEditNote" class="recurring-note" style="display:none;">
       🔁 Recorrente — alterar o valor aqui atualiza os próximos meses automaticamente. Meses passados não mudam.
+      <div class="recurring-delete-actions">
+        <button type="button" id="deleteThisMonthBtn" class="stop-recurring-btn">Deletar esse mês</button>
+        <button type="button" id="deleteThisAndFutureBtn" class="stop-recurring-btn">Deletar esse mês e os próximos</button>
+      </div>
     </div>
 
     <label>Data</label>
@@ -888,6 +900,34 @@ function openEditSheet(entry){
   updateParcelarVisibility();
   document.getElementById('backdrop').classList.add('open');
 }
+async function deleteThisMonthOnly(){
+  if(!editingId) return;
+  if(!confirm("Excluir este lançamento?")) return;
+  const id = editingId;
+  document.getElementById('backdrop').classList.remove('open');
+  await deleteEntry(id);
+}
+async function deleteThisAndFuture(){
+  if(!editingId) return;
+  const entry = entries.find(e => e.id === editingId);
+  if(!entry) return;
+  if(!confirm("Excluir este mês e parar a recorrência? Os meses seguintes não serão mais criados.")) return;
+
+  const id = editingId;
+  const tid = entry.recurringId;
+  document.getElementById('backdrop').classList.remove('open');
+
+  if(tid && recurringTemplates[tid]){
+    recurringTemplates = { ...recurringTemplates, [tid]: { ...recurringTemplates[tid], active: false } };
+    if(recurringTemplatesRef){
+      try{ await recurringTemplatesRef.set(recurringTemplates); }
+      catch(e){ console.error('Failed to stop recurring template:', e); }
+    }
+  }
+  await deleteEntry(id);
+}
+document.getElementById('deleteThisMonthBtn').onclick = deleteThisMonthOnly;
+document.getElementById('deleteThisAndFutureBtn').onclick = deleteThisAndFuture;
 document.getElementById('cancelAdd').onclick = () => {
   document.getElementById('backdrop').classList.remove('open');
 };
