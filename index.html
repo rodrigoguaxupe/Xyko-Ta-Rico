@@ -458,22 +458,24 @@
   }
   .fixed-card{ background:#6B5842 !important; }
 
-  .monthly-chart{background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);padding:10px 14px 9px;margin-top:18px;font-size:11px;}
+  .monthly-chart{background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);padding:10px 14px 16px;margin-top:18px;font-size:11px;}
   .monthly-scroll{overflow-x:auto;overscroll-behavior-x:contain;}
   .monthly-history{min-width:100%;}
-  .monthly-plot{height:70px;position:relative;}
+  .monthly-plot{height:64px;position:relative;}
   .monthly-column{position:absolute;bottom:0;width:18px;background:var(--income);border-radius:3px 3px 0 0;}
-  .monthly-total{position:absolute;white-space:nowrap;left:50%;transform:translateX(-50%);top:-24px;font-size:11px;}
+  .monthly-total{position:absolute;white-space:nowrap;left:50%;transform:translateX(-50%);top:-22px;font-size:clamp(8px,2.4vw,11px);color:var(--income);}
   .monthly-spent{position:absolute;bottom:0;width:8px;background:var(--expense);border-radius:2px 2px 0 0;}
   .monthly-connector{position:absolute;inset:0;pointer-events:none;}
-  .monthly-labels{display:grid;grid-template-columns:repeat(var(--month-count),1fr);text-align:center;border-top:1px solid var(--line);font-size:11px;line-height:14px;}
-  .monthly-expense{color:var(--expense);font-size:11px;margin:3px 0 4px;}
-  .monthly-date{color:var(--ink-soft);}
-  .monthly-balance{color:var(--income);margin-top:4px;font-variant-numeric:tabular-nums;}
-  .monthly-balance-label{display:block;}
-  .monthly-currency{font-size:8px;}
+  .monthly-labels{display:grid;grid-template-columns:repeat(var(--month-count),1fr);text-align:center;border-top:1px solid var(--line);font-size:clamp(8px,2.4vw,11px);line-height:14px;}
+  .monthly-expense{color:var(--expense);font-size:inherit;margin:5px 0 1px;}
+  .monthly-date{color:var(--ink);font-size:clamp(7px,2vw,9px);}
+  .monthly-balance{color:var(--income);margin-top:2px;font-variant-numeric:tabular-nums;}
+  .monthly-balance-label{display:block;font-size:clamp(7px,2vw,9px);margin-bottom:2px;}
+  .monthly-currency{font-size:.72em;}
+  .monthly-labels>div:not(:last-child){border-right:1px solid color-mix(in srgb,var(--line) 40%,transparent);}
+  .monthly-labels>div{min-width:0;}
   .monthly-balance.negative{color:var(--expense);}
-  .monthly-empty{font-size:11px;color:var(--ink-soft);margin-top:4px;}
+  .monthly-empty{overflow-wrap:anywhere;font-size:9px;color:var(--ink-soft);margin-top:4px;}
   #prevMonth:disabled{visibility:hidden;pointer-events:none;}
 </style>
 </head>
@@ -484,15 +486,17 @@
     <button class="xp-tab-btn" id="openXpBtn" aria-label="XP" title="XP">$</button>
   </header>
 
-  <section class="monthly-chart" id="monthlyChart" aria-label="Comparação mensal" aria-live="polite">Carregando…</section>
+  <div id="blocksContainer">
+  <div class="dash-block" data-block="monthlyHistory">
+    <div class="block-controls"><button class="move-btn" data-dir="up" aria-label="Mover histórico para cima">▲</button><button class="move-btn" data-dir="down" aria-label="Mover histórico para baixo">▼</button></div>
+    <section class="monthly-chart" id="monthlyChart" aria-label="Comparação mensal" aria-live="polite">Carregando…</section>
+  </div>
 
   <div class="month-nav">
     <button id="prevMonth">‹</button>
     <div class="month-label" id="monthLabel">Carregando…</div>
     <button id="nextMonth">›</button>
   </div>
-
-  <div id="blocksContainer">
 
   <div class="dash-block" data-block="variableSummary">
     <div class="block-controls"><button class="move-btn" data-dir="up" aria-label="Mover para cima">▲</button><button class="move-btn" data-dir="down" aria-label="Mover para baixo">▼</button></div>
@@ -568,7 +572,7 @@
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 45</div>
+<div class="version-label">versão 46</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -1225,7 +1229,7 @@ function loadRecurringTemplates(){
   });
 }
 
-const DEFAULT_BLOCK_ORDER = ["variableSummary","variableCatBars","variableBudget","ledger"];
+const DEFAULT_BLOCK_ORDER = ["monthlyHistory","variableSummary","variableCatBars","variableBudget","ledger"];
 let blockOrder = [...DEFAULT_BLOCK_ORDER];
 
 function applyBlockOrder(){
@@ -1234,9 +1238,13 @@ function applyBlockOrder(){
   const blocks = {};
   container.querySelectorAll('.dash-block').forEach(el => { blocks[el.dataset.block] = el; });
   const order = [...new Set(blockOrder.filter(id => blocks[id]))];
+  if(!order.includes('monthlyHistory')) order.unshift('monthlyHistory');
   DEFAULT_BLOCK_ORDER.forEach(id => { if(!order.includes(id) && blocks[id]) order.push(id); });
   blockOrder = order;
   order.forEach(id => container.appendChild(blocks[id]));
+  const nav = container.querySelector('.month-nav');
+  const firstLedgerBlock = order.find(id => id !== 'monthlyHistory');
+  if(nav && firstLedgerBlock) container.insertBefore(nav,blocks[firstLedgerBlock]);
 
   order.forEach((id, i) => {
     const el = blocks[id];
@@ -2054,7 +2062,7 @@ function monthlyTotals(date){
   const income = rows.filter(e => e.type === 'income').reduce((sum,e)=>sum+e.amount,0);
   const expense = rows.filter(e => e.type === 'expense').reduce((sum,e)=>sum+e.amount,0);
   return { income, expense, balance: income-expense, hasData: rows.length > 0,
-    label: String(date.getMonth()+1).padStart(2,'0')+'/'+String(date.getFullYear()).slice(-2) };
+    label: date.toLocaleDateString('pt-BR',{month:'long'}).replace(/^./,c=>c.toUpperCase()), year: date.getFullYear() };
 }
 function completedHistory(now = new Date()){
   const end = new Date(now.getFullYear(),now.getMonth(),1);
@@ -2073,13 +2081,14 @@ function renderMonthlyChart(){
   const max = Math.max(1,...months.flatMap(m=>[m.income,m.expense]));
   const height = value => Math.max(0,value)/max*44;
   const label = (m,value) => m.hasData ? fmt(value).replace('R$','<span class="monthly-currency">R$</span> ') : '—';
-  const x = i => (i+0.5)/months.length*100;
-  const connectors = months.slice(1).map((m,i)=> m.hasData && months[i].hasData ? `<line x1="${x(i)}%" y1="${70-height(months[i].expense)}" x2="${x(i+1)}%" y2="${70-height(m.expense)}" stroke="var(--expense)" stroke-width="0.4" stroke-opacity="0.35"/>` : '').join('');
-  chart.innerHTML = `<div class="monthly-scroll" role="region" aria-label="Histórico mensal desde agosto de 2026" tabindex="0"><div class="monthly-history" style="width:${months.length*100}px;--month-count:${months.length}">
-    <div class="monthly-plot" role="img" aria-label="${months.map(m=>m.label+': '+(m.hasData?'recebido '+fmt(m.income)+', gastos '+fmt(m.expense)+', saldo '+fmt(m.balance):'sem lançamentos')).join('. ')}">
+  const slots = Math.max(6,months.length);
+  const x = i => (i+0.5)/slots*100;
+  const connectors = months.slice(1).map((m,i)=> m.hasData && months[i].hasData ? `<line x1="${x(i)}%" y1="${64-height(months[i].expense)}" x2="${x(i+1)}%" y2="${64-height(m.expense)}" stroke="var(--expense)" stroke-width="0.4" stroke-opacity="0.35"/>` : '').join('');
+  chart.innerHTML = `<div class="monthly-scroll" role="region" aria-label="Histórico mensal desde agosto de 2026" tabindex="0"><div class="monthly-history" style="width:${slots/6*100}%;--month-count:${slots}">
+    <div class="monthly-plot" role="img" aria-label="${months.map(m=>m.label+' '+m.year+': '+(m.hasData?'recebido '+fmt(m.income)+', gastos '+fmt(m.expense)+', saldo '+fmt(m.balance):'sem lançamentos')).join('. ')}">
       ${months.map((m,i)=>`<div class="monthly-column" style="left:calc(${x(i)}% - 9px);height:${height(m.income)}px"><span class="monthly-total">${label(m,m.income)}</span></div>
       <div class="monthly-spent" style="left:calc(${x(i)}% - 4px);height:${height(m.expense)}px"></div>`).join('')}
-      <svg class="monthly-connector" width="100%" height="70" aria-hidden="true">${connectors}</svg>
+      <svg class="monthly-connector" width="100%" height="64" aria-hidden="true">${months.slice(1).map((m,i)=>`<line x1="${(i+1)/slots*100}%" x2="${(i+1)/slots*100}%" y1="0" y2="64" stroke="var(--line)" stroke-opacity="0.4"/>`).join('')}${connectors}</svg>
     </div>
     <div class="monthly-labels">${months.map(m=>`<div><div class="monthly-expense">${label(m,m.expense)}</div><div class="monthly-date">${m.label}</div><div class="monthly-balance${m.balance<0?' negative':''}"><span class="monthly-balance-label">Saldo</span>${label(m,m.balance)}</div>${m.hasData?'':'<div class="monthly-empty">Sem lançamentos</div>'}</div>`).join('')}</div>
     </div></div>`;
