@@ -458,22 +458,23 @@
   }
   .fixed-card{ background:#6B5842 !important; }
 
-  .monthly-chart{background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);padding:14px 16px;margin-top:18px;font-size:12px;}
-  .monthly-legend{display:flex;gap:16px;font-size:11px;color:var(--ink-soft);margin-bottom:6px;}
-  .monthly-legend span{display:flex;align-items:center;gap:5px;}
-  .monthly-legend i{width:7px;height:7px;border-radius:2px;background:var(--income);}
-  .monthly-legend .spent-key{background:var(--expense);}
-  .monthly-plot{height:110px;position:relative;margin:0 12px;}
-  .monthly-column{position:absolute;bottom:0;width:24px;background:var(--income);border-radius:4px 4px 0 0;}
-  .monthly-total{position:absolute;white-space:nowrap;left:50%;transform:translateX(-50%);top:-20px;font-size:11px;}
-  .monthly-spent{position:absolute;bottom:0;width:12px;background:var(--expense);border-radius:3px 3px 0 0;}
+  .monthly-chart{background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius);padding:10px 14px 9px;margin-top:18px;font-size:11px;}
+  .monthly-scroll{overflow-x:auto;overscroll-behavior-x:contain;}
+  .monthly-history{min-width:100%;}
+  .monthly-plot{height:70px;position:relative;}
+  .monthly-column{position:absolute;bottom:0;width:18px;background:var(--income);border-radius:3px 3px 0 0;}
+  .monthly-total{position:absolute;white-space:nowrap;left:50%;transform:translateX(-50%);top:-24px;font-size:11px;}
+  .monthly-spent{position:absolute;bottom:0;width:8px;background:var(--expense);border-radius:2px 2px 0 0;}
   .monthly-connector{position:absolute;inset:0;pointer-events:none;}
-  .monthly-labels{display:grid;grid-template-columns:1fr 1fr;text-align:center;border-top:1px solid var(--line);margin:0 12px;}
-  .monthly-expense{color:var(--expense);font-size:11px;margin:5px 0 8px;}
+  .monthly-labels{display:grid;grid-template-columns:repeat(var(--month-count),1fr);text-align:center;border-top:1px solid var(--line);font-size:11px;line-height:14px;}
+  .monthly-expense{color:var(--expense);font-size:11px;margin:3px 0 4px;}
+  .monthly-date{color:var(--ink-soft);}
   .monthly-balance{color:var(--income);margin-top:4px;font-variant-numeric:tabular-nums;}
-  .monthly-balance span{display:block;margin-bottom:3px;}
+  .monthly-balance-label{display:block;}
+  .monthly-currency{font-size:8px;}
   .monthly-balance.negative{color:var(--expense);}
   .monthly-empty{font-size:11px;color:var(--ink-soft);margin-top:4px;}
+  #prevMonth:disabled{visibility:hidden;pointer-events:none;}
 </style>
 </head>
 <body>
@@ -567,7 +568,7 @@
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 44</div>
+<div class="version-label">versão 45</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -746,7 +747,8 @@ let budgetLimits = {
 
 let entries = [];
 let currentType = "expense";
-let viewDate = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+const FIRST_MONTH = new Date(2026,7,1);
+let viewDate = new Date(Math.max(FIRST_MONTH.getTime(),new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()));
 let editingId = null;
 const GOAL_STEP = 5000;
 
@@ -1914,7 +1916,13 @@ async function confirmRenameCategory(){
   catch(e){ console.error('Rename sync failed:', e); }
 }
 
+function updateMonthNavigation(){
+  if(viewDate < FIRST_MONTH) viewDate = new Date(FIRST_MONTH);
+  document.getElementById('prevMonth').disabled = viewDate <= FIRST_MONTH;
+  document.getElementById('monthLabel').textContent = viewDate.toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
+}
 function render(){
+  updateMonthNavigation();
   if(!entriesLoadedOnce) return;
   renderMonthlyChart();
   const mk = monthKey(viewDate);
@@ -2020,6 +2028,7 @@ function render(){
 }
 
 document.getElementById('prevMonth').onclick = () => {
+  if(viewDate <= FIRST_MONTH) return;
   viewDate.setMonth(viewDate.getMonth()-1);
   render();
 };
@@ -2038,7 +2047,7 @@ document.getElementById('xpPasscodeBackdrop').onclick = (e) => {
   if(e.target.id === 'xpPasscodeBackdrop') document.getElementById('xpPasscodeBackdrop').classList.remove('open');
 };
 
-// Compare the two completed months before the selected month.
+// Historical totals are independent of the selected ledger month.
 function monthlyTotals(date){
   const key = monthKey(date);
   const rows = entries.filter(e => e.date && e.date.slice(0,7) === key);
@@ -2047,21 +2056,38 @@ function monthlyTotals(date){
   return { income, expense, balance: income-expense, hasData: rows.length > 0,
     label: String(date.getMonth()+1).padStart(2,'0')+'/'+String(date.getFullYear()).slice(-2) };
 }
-function renderMonthlyChart(){
-  const months = [-2,-1].map(offset => monthlyTotals(new Date(viewDate.getFullYear(),viewDate.getMonth()+offset,1)));
-  const max = Math.max(1,...months.flatMap(m=>[m.income,m.expense]));
-  const height = value => Math.max(0,value)/max*84;
-  const label = (m,value) => m.hasData ? fmt(value) : '—';
-  const connector = months.every(m=>m.hasData) ? `<svg class="monthly-connector" width="100%" height="110" aria-hidden="true"><line x1="25%" y1="${110-height(months[0].expense)}" x2="75%" y2="${110-height(months[1].expense)}" stroke="var(--expense)" stroke-width="0.4" stroke-opacity="0.35"/></svg>` : '';
-  document.getElementById('monthlyChart').innerHTML = `
-    <div class="monthly-legend"><span><i></i>Total recebido</span><span><i class="spent-key"></i>Gastos</span></div>
-    <div class="monthly-plot" role="img" aria-label="${months.map(m=>m.label+': recebido '+label(m,m.income)+', gastos '+label(m,m.expense)+', saldo '+label(m,m.balance)).join('. ')}">
-      ${months.map((m,i)=>`<div class="monthly-column" style="left:calc(${i?75:25}% - 12px);height:${height(m.income)}px"><span class="monthly-total">${label(m,m.income)}</span></div>
-      <div class="monthly-spent" style="left:calc(${i?75:25}% - 6px);height:${height(m.expense)}px"></div>`).join('')}
-      ${connector}
-    </div>
-    <div class="monthly-labels">${months.map(m=>`<div><div class="monthly-expense">${label(m,m.expense)}</div><div>${m.label}</div><div class="monthly-balance${m.balance<0?' negative':''}"><span>Saldo</span>${label(m,m.balance)}</div>${m.hasData?'':'<div class="monthly-empty">Sem lançamentos</div>'}</div>`).join('')}</div>`;
+function completedHistory(now = new Date()){
+  const end = new Date(now.getFullYear(),now.getMonth(),1);
+  const months = [];
+  for(let date = new Date(FIRST_MONTH);date < end;date.setMonth(date.getMonth()+1)){
+    months.push(monthlyTotals(date));
+  }
+  return months;
 }
+function renderMonthlyChart(){
+  const months = completedHistory();
+  const chart = document.getElementById('monthlyChart');
+  const oldScroll = chart.querySelector('.monthly-scroll');
+  const scrollLeft = oldScroll ? oldScroll.scrollLeft : 0;
+  if(!months.length){chart.textContent = 'O histórico aparece após o fechamento de agosto.';return;}
+  const max = Math.max(1,...months.flatMap(m=>[m.income,m.expense]));
+  const height = value => Math.max(0,value)/max*44;
+  const label = (m,value) => m.hasData ? fmt(value).replace('R$','<span class="monthly-currency">R$</span> ') : '—';
+  const x = i => (i+0.5)/months.length*100;
+  const connectors = months.slice(1).map((m,i)=> m.hasData && months[i].hasData ? `<line x1="${x(i)}%" y1="${70-height(months[i].expense)}" x2="${x(i+1)}%" y2="${70-height(m.expense)}" stroke="var(--expense)" stroke-width="0.4" stroke-opacity="0.35"/>` : '').join('');
+  chart.innerHTML = `<div class="monthly-scroll" role="region" aria-label="Histórico mensal desde agosto de 2026" tabindex="0"><div class="monthly-history" style="width:${months.length*100}px;--month-count:${months.length}">
+    <div class="monthly-plot" role="img" aria-label="${months.map(m=>m.label+': '+(m.hasData?'recebido '+fmt(m.income)+', gastos '+fmt(m.expense)+', saldo '+fmt(m.balance):'sem lançamentos')).join('. ')}">
+      ${months.map((m,i)=>`<div class="monthly-column" style="left:calc(${x(i)}% - 9px);height:${height(m.income)}px"><span class="monthly-total">${label(m,m.income)}</span></div>
+      <div class="monthly-spent" style="left:calc(${x(i)}% - 4px);height:${height(m.expense)}px"></div>`).join('')}
+      <svg class="monthly-connector" width="100%" height="70" aria-hidden="true">${connectors}</svg>
+    </div>
+    <div class="monthly-labels">${months.map(m=>`<div><div class="monthly-expense">${label(m,m.expense)}</div><div class="monthly-date">${m.label}</div><div class="monthly-balance${m.balance<0?' negative':''}"><span class="monthly-balance-label">Saldo</span>${label(m,m.balance)}</div>${m.hasData?'':'<div class="monthly-empty">Sem lançamentos</div>'}</div>`).join('')}</div>
+    </div></div>`;
+  chart.querySelector('.monthly-scroll').scrollLeft = scrollLeft;
+}
+// Refresh completed months when an app left open is resumed after month-end.
+document.addEventListener('visibilitychange',()=>{if(!document.hidden && entriesLoadedOnce) renderMonthlyChart();});
+
 
 function savedStatusText(){
   if(!entries.length) return "Salvo";
@@ -2117,7 +2143,7 @@ document.getElementById('csvBtn').onclick = () => {
   URL.revokeObjectURL(url);
 };
 
-document.getElementById('monthLabel').textContent = viewDate.toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
+updateMonthNavigation();
 populateCategories();
 load();
 loadCategories();
