@@ -562,17 +562,13 @@
   <div class="section-title">Evolução mensal</div>
   <div id="xpChart" class="xp-chart-wrap"></div>
 
-  <div class="section-title">Retiradas</div>
-  <div class="ledger" id="xpWithdrawalList"></div>
-
-  <div class="section-title">Saldos registrados</div>
-  <div class="ledger" id="xpLedgerList"></div>
+  <div id="xpTimeline"></div>
 </div>
 
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 46</div>
+<div class="version-label">versão 47</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -1481,12 +1477,13 @@ function startEditXpInflation(el){
 
 function renderXpChart(){
   const snaps = xpSortedSnapshots();
+  if(snaps.length) snaps[snaps.length-1] = {...snaps[snaps.length-1], balance: xpCurrentBalance()};
   const wrap = document.getElementById('xpChart');
   if(!snaps.length){
     wrap.innerHTML = '<div class="empty">Nenhum saldo registrado ainda.</div>';
     return;
   }
-  const W = 320, H = 150, padL = 8, padR = 8, padT = 12, padB = 22;
+  const W = 320, H = 150, padL = 8, padR = 8, padT = 24, padB = 22;
   const values = snaps.map(s => s.balance);
   const min = Math.min(0, ...values);
   const max = Math.max(...values, 1);
@@ -1512,6 +1509,7 @@ function renderXpChart(){
     <path d="${areaD}" fill="rgba(47,93,78,0.12)" stroke="none"/>
     <path d="${pathD}" fill="none" stroke="#2F5D4E" stroke-width="2"/>
     ${labels}
+    ${labelIdxs.map(i => `<text class="xp-chart-value" x="${points[i][0].toFixed(1)}" y="${(points[i][1]-8).toFixed(1)}" font-size="8" fill="#5B6B62" text-anchor="${i===0?'start':i===snaps.length-1?'end':'middle'}">${Math.trunc(snaps[i].balance/1000)}</text>`).join('')}
   </svg>`;
 }
 
@@ -1526,79 +1524,63 @@ function renderXP(){
   infEl.replaceWith(freshInfEl);
   freshInfEl.addEventListener('click', () => startEditXpInflation(freshInfEl));
 
-  const listEl = document.getElementById('xpLedgerList');
-  listEl.innerHTML = "";
-  const snaps = xpSortedSnapshots().slice().reverse();
-  if(!snaps.length){
-    listEl.innerHTML = '<div class="empty">Nenhum saldo registrado ainda.<br>Toque em + para adicionar o primeiro.</div>';
-  } else {
-    snaps.forEach(s => {
-      const row = document.createElement('div');
-      row.className = 'entry';
-      row.style.cursor = 'pointer';
-      const [y,m] = s.month.split('-');
-      const monthLabel = new Date(parseInt(y), parseInt(m)-1, 1).toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
-      const withdrawnAmt = xpWithdrawnInMonth(s.month);
-      const withdrawnTag = withdrawnAmt ? ` · retirou ${fmt(withdrawnAmt)}` : '';
-      row.innerHTML = `
-        <div class="mid">
-          <div class="cat">${monthLabel}</div>
-          <div class="meta">${s.note ? s.note : 'Saldo registrado'}${withdrawnTag}</div>
-        </div>
-        <div class="amt income">${fmt(s.balance)}</div>
-        <button class="del" data-month="${s.month}" aria-label="Excluir">×</button>
-      `;
-      row.addEventListener('click', (evt) => {
-        if(evt.target.closest('.del')) return;
-        openXpBalanceEditSheet(s);
-      });
-      row.querySelector('.del').onclick = (evt) => {
-        evt.stopPropagation();
-        if(confirm("Excluir este saldo?")){
-          delete xpSnapshots[s.month];
-          renderXP();
-          persistXpSnapshots();
-        }
-      };
-      listEl.appendChild(row);
-    });
+  const timeline = document.getElementById('xpTimeline');
+  timeline.replaceChildren();
+  const events = [
+    ...xpSortedSnapshots().map(s=>({kind:'balance',date:s.month+'-01',record:s})),
+    ...xpSortedWithdrawals().map(w=>({kind:'withdrawal',date:w.date,record:w}))
+  ].filter(e=>e.date).sort((a,b)=>b.date.localeCompare(a.date) ||
+    (a.kind===b.kind ? (b.record.createdAt||0)-(a.record.createdAt||0) : a.kind==='withdrawal'?-1:1));
+  if(!events.length){
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'Nenhum lançamento ainda. Toque em + para adicionar.';
+    timeline.appendChild(empty);
+    return;
   }
-
-  const wListEl = document.getElementById('xpWithdrawalList');
-  wListEl.innerHTML = "";
-  const wds = xpSortedWithdrawals().slice().reverse();
-  if(!wds.length){
-    wListEl.innerHTML = '<div class="empty">Nenhuma retirada registrada ainda.</div>';
-  } else {
-    wds.forEach(w => {
-      const row = document.createElement('div');
-      row.className = 'entry';
-      row.style.cursor = 'pointer';
-      const dateLabel = new Date(w.date + 'T00:00:00').toLocaleDateString('pt-BR',{month:'short', day:'numeric'});
-      const recurringTag = w.recurringId ? ` · 🔁` : '';
-      row.innerHTML = `
-        <div class="mid">
-          <div class="cat">${w.note || 'Retirada'}</div>
-          <div class="meta">${dateLabel}${recurringTag}</div>
-        </div>
-        <div class="amt expense">-${fmt(w.amount)}</div>
-        <button class="del" data-id="${w.id}" aria-label="Excluir">×</button>
-      `;
-      row.addEventListener('click', (evt) => {
-        if(evt.target.closest('.del')) return;
-        openXpWithdrawalEditSheet(w);
-      });
-      row.querySelector('.del').onclick = (evt) => {
-        evt.stopPropagation();
-        if(confirm("Excluir esta retirada?")){
-          delete xpWithdrawals[w.id];
-          renderXP();
-          persistXpWithdrawals();
-        }
-      };
-      wListEl.appendChild(row);
-    });
-  }
+  let currentMonth, ledger;
+  events.forEach(event=>{
+    const month = event.date.slice(0,7);
+    if(month !== currentMonth){
+      currentMonth = month;
+      const heading = document.createElement('div');
+      heading.className = 'section-title';
+      heading.textContent = new Date(month+'-01T00:00:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+      ledger = document.createElement('div');
+      ledger.className = 'ledger';
+      timeline.append(heading,ledger);
+    }
+    const record = event.record;
+    const balance = event.kind === 'balance';
+    const row = document.createElement('div');
+    row.className = 'entry';
+    row.style.cursor = 'pointer';
+    const mid = document.createElement('div'); mid.className = 'mid';
+    const title = document.createElement('div'); title.className = 'cat';
+    title.textContent = balance ? 'Saldo' : record.note || 'Retirada';
+    const meta = document.createElement('div'); meta.className = 'meta';
+    meta.textContent = new Date(event.date+'T00:00:00').toLocaleDateString('pt-BR',{day:'numeric',month:'short'}) +
+      (balance && record.note ? ' · '+record.note : !balance && record.recurringId ? ' · 🔁' : '');
+    mid.append(title,meta);
+    const amount = document.createElement('div');
+    amount.className = 'amt '+(balance?'income':'expense');
+    amount.textContent = balance ? fmt(record.balance) : '-'+fmt(record.amount);
+    const del = document.createElement('button'); del.className = 'del';del.textContent = '×';
+    del.setAttribute('aria-label',balance?'Excluir saldo':'Excluir retirada');
+    row.append(mid,amount,del);
+    row.onclick = evt => {
+      if(evt.target.closest('.del')) return;
+      if(balance) openXpBalanceEditSheet(record); else openXpWithdrawalEditSheet(record);
+    };
+    del.onclick = evt => {
+      evt.stopPropagation();
+      if(!confirm(balance?'Excluir este saldo?':'Excluir esta retirada?')) return;
+      if(balance){delete xpSnapshots[record.month];persistXpSnapshots();}
+      else {delete xpWithdrawals[record.id];persistXpWithdrawals();}
+      renderXP();
+    };
+    ledger.appendChild(row);
+  });
 }
 
 function showXpView(){
