@@ -746,6 +746,7 @@ let budgetLimits = {
 };
 
 let entries = [];
+let skippedOccurrences = {};
 let currentType = "expense";
 const FIRST_MONTH = new Date(2026,7,1);
 let viewDate = new Date(Math.max(FIRST_MONTH.getTime(),new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()));
@@ -1007,12 +1008,18 @@ document.getElementById('saveAdd').onclick = async () => {
 };
 
 function entriesToObj(arr){
-  const o = {};
+  const o = { ...skippedOccurrences };
   arr.forEach(e => { o[e.id] = e; });
   return o;
 }
 function objToEntries(obj){
-  return obj ? Object.values(obj) : [];
+  const visible = [];
+  skippedOccurrences = {};
+  for(const [id, record] of Object.entries(obj || {})){
+    if(record.skippedMonth) skippedOccurrences[id] = record;
+    else visible.push(record);
+  }
+  return visible;
 }
 
 async function persist(){
@@ -1061,12 +1068,24 @@ let lastDeletedEntry = null;
 let undoTimer = null;
 
 async function deleteEntry(id){
-  const idx = entries.findIndex(e => e.id === id);
-  if(idx === -1) return;
-  lastDeletedEntry = entries[idx];
-  entries = entries.filter(e => e.id !== id);
-  render();
-  await persist();
+  const entry = entries.find(e => e.id === id);
+  if(!entry) return;
+  // Keep a recurring month's exclusion at the same key as its former entry.
+  const replacement = entry.recurringId
+    ? { id, recurringId: entry.recurringId, skippedMonth: entry.date.slice(0,7) }
+    : null;
+  if(entriesRef){
+    try{ await entriesRef.child(id).set(replacement); }
+    catch(e){
+      document.getElementById('statusLine').textContent = "Não foi possível excluir o lançamento. Tente novamente.";
+      return;
+    }
+  } else {
+    if(replacement) skippedOccurrences[id] = replacement;
+    entries = entries.filter(e => e.id !== id);
+    render();
+  }
+  lastDeletedEntry = entry;
   showUndoToast();
 }
 
@@ -1082,12 +1101,22 @@ function showUndoToast(){
 
 async function undoDelete(){
   if(!lastDeletedEntry) return;
-  entries.push(lastDeletedEntry);
+  const entry = lastDeletedEntry;
   lastDeletedEntry = null;
   clearTimeout(undoTimer);
   document.getElementById('undoToast').classList.remove('show');
-  render();
-  await persist();
+  if(entriesRef){
+    try{ await entriesRef.child(entry.id).set(entry); }
+    catch(e){
+      document.getElementById('statusLine').textContent = "Não foi possível restaurar o lançamento. Tente novamente.";
+      lastDeletedEntry = entry;
+      showUndoToast();
+    }
+  } else {
+    delete skippedOccurrences[entry.id];
+    entries.push(entry);
+    render();
+  }
 }
 
 function monthKey(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0'); }
@@ -1771,7 +1800,7 @@ function daysInMonth(year, monthIndex){
 }
 async function maybeGenerateRecurringEntries(){
   if(!templatesLoadedOnce || !entriesLoadedOnce) return;
-  const todayKey = monthKey(new Date());
+  const skipped = Object.values(skippedOccurrences);
   let added = false;
 
   Object.keys(recurringTemplates).forEach((tid) => {
@@ -1784,7 +1813,7 @@ async function maybeGenerateRecurringEntries(){
       const m = cursor.getMonth();
       const mk = y + "-" + String(m+1).padStart(2,'0');
       const already = entries.some(e => e.recurringId === tid && e.date && e.date.slice(0,7) === mk);
-      if(!already){
+      if(!already && !skipped.some(e => e.recurringId === tid && e.skippedMonth === mk)){
         const day = Math.min(t.dayOfMonth, daysInMonth(y, m));
         const dateStr = mk + "-" + String(day).padStart(2,'0');
         entries.push({
