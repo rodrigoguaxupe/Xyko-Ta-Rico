@@ -568,7 +568,7 @@
 <button class="fab" id="openAdd" aria-label="Adicionar lançamento">+</button>
 <button class="backup-btn" id="backupBtn" aria-label="Baixar backup" title="Baixar backup (JSON)">⤓</button>
 <button class="backup-btn csv-btn" id="csvBtn" aria-label="Baixar planilha" title="Baixar planilha (Excel)">▦</button>
-<div class="version-label">versão 47</div>
+<div class="version-label">versão 48</div>
 <div class="undo-toast" id="undoToast">
   <span>Excluído</span>
   <button id="undoBtn">Desfazer</button>
@@ -878,7 +878,6 @@ function openEditSheet(entry){
 }
 async function deleteThisMonthOnly(){
   if(!editingId) return;
-  if(!confirm("Excluir este lançamento?")) return;
   const id = editingId;
   document.getElementById('backdrop').classList.remove('open');
   await deleteEntry(id);
@@ -1070,14 +1069,17 @@ let undoTimer = null;
 async function deleteEntry(id){
   const entry = entries.find(e => e.id === id);
   if(!entry) return;
-  // Keep a recurring month's exclusion at the same key as its former entry.
+  // Older clients also need the original date to recognize this month as generated.
   const replacement = entry.recurringId
-    ? { id, recurringId: entry.recurringId, skippedMonth: entry.date.slice(0,7) }
+    ? { ...entry, skippedMonth: entry.date.slice(0,7) }
     : null;
   if(entriesRef){
     try{ await entriesRef.child(id).set(replacement); }
     catch(e){
-      document.getElementById('statusLine').textContent = "Não foi possível excluir o lançamento. Tente novamente.";
+      console.error("Failed to delete entry:", e);
+      const message = "Não foi possível excluir o lançamento. Tente novamente.";
+      document.getElementById('statusLine').textContent = message;
+      showUndoToast(message, false);
       return;
     }
   } else {
@@ -1089,9 +1091,11 @@ async function deleteEntry(id){
   showUndoToast();
 }
 
-function showUndoToast(){
+function showUndoToast(message = "Excluído", canUndo = true){
   clearTimeout(undoTimer);
   const toast = document.getElementById('undoToast');
+  toast.querySelector('span').textContent = message;
+  document.getElementById('undoBtn').hidden = !canUndo;
   toast.classList.add('show');
   undoTimer = setTimeout(() => {
     toast.classList.remove('show');
@@ -2038,9 +2042,7 @@ function render(){
     });
     row.querySelector('.del').onclick = (evt) => {
       evt.stopPropagation();
-      if(confirm("Excluir este lançamento?")){
-        deleteEntry(e.id);
-      }
+      deleteEntry(e.id);
     };
     listEl.appendChild(row);
   });
